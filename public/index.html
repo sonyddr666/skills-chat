@@ -5378,8 +5378,10 @@ return await createBackendApprovalRequest({
                 renderSidebar,
                 renderChat,
                 scrollEnd,
+                getActiveId: () => activeId,
                 getRuntimeConfig: () => runtimeConfig,
                 getGeminiLive: () => geminiLive,
+                isLiveMode: () => !!liveMode,
                 setLiveMode: (next) => { liveMode = !!next; },
                 newMessageId,
                 isCodexModel,
@@ -5392,6 +5394,25 @@ return await createBackendApprovalRequest({
                 getConversationMessage,
                 conversationMessages,
                 updateMessageChatJob,
+                requestChatJob,
+                waitForChatJob,
+                parseGeminiJobSnapshot,
+                buildGeminiRequestFromMessages,
+                revealMessageText,
+                pushToolCallTrace,
+                pushToolResultTrace,
+                executePlugin,
+                extractToolArtifacts,
+                mergeMessageFiles,
+                buildCodexTools,
+                buildCodexInputFromMessages,
+                stringifyCodexToolOutput,
+                codexUsageTotalTokens,
+                renderMarkdown,
+                pushMessageTrace,
+                trimTraceText,
+                stopMessageReveal,
+                ttsSpeakMsg,
                 nextGenerationSeq: () => ++generationSeq,
                 refreshGenerationUi
             });
@@ -7002,392 +7023,7 @@ return await createBackendApprovalRequest({
                     getCurrentHistoryMessages,
                     updateCurrentModelChatJob
                 } = prepared;
-                let { imgsToSave, filesToSave } = prepared;
-                try {
-                    imgsToSave = await persistPendingAttachments(imgsToSave, 'images');
-                    filesToSave = await persistPendingAttachments(filesToSave, 'files');
-                    if (imgsToSave.length) msgData.imgs = imgsToSave;
-                    else delete msgData.imgs;
-                    if (filesToSave.length) msgData.files = filesToSave;
-                    else delete msgData.files;
-                    saveConvs();
-                    renderChat(true);
-
-                    const body = buildGeminiRequestFromMessages(getCurrentHistoryMessages(), {
-                        model,
-                        think,
-                        temperature: temp,
-                        topP: topp,
-                        topK: topk,
-                        maxOutputTokens: maxt,
-                        systemPrompt: sysp
-                    });
-                    const bub = getCurrentModelBubble();
-
-                    async function callAPI(reqBody, bubEl, depth) {
-                        depth = depth || 0;
-                        updateCurrentModelChatJob({
-                            provider: 'gemini',
-                            status: 'starting',
-                            pendingRequest: {
-                                provider: 'gemini',
-                                model,
-                                request: reqBody
-                            },
-                            error: null
-                        });
-                        const job = await requestChatJob({
-                            provider: 'gemini',
-                            model,
-                            request: reqBody
-                        }, requestCtrl.signal);
-                        if (!job?.id) throw new Error('Falha ao iniciar o job Gemini no backend.');
-
-                        updateCurrentModelChatJob({
-                            id: job.id,
-                            provider: 'gemini',
-                            status: job.status || 'running',
-                            startedAt: job.created_at || Date.now(),
-                            pendingRequest: null
-                        });
-
-                        let parsedSnapshot = { full: '', tok: 0, sig: '', fnCallParts: [] };
-                        const snapshot = await waitForChatJob(job.id, {
-                            signal: requestCtrl.signal,
-                            pollMs: 250,
-                            onSnapshot(data) {
-                                parsedSnapshot = parseGeminiJobSnapshot(data?.raw_sse || '');
-                                const currentMsg = getCurrentModelMsg();
-                                if (!currentMsg) return;
-
-                                updateCurrentModelChatJob({
-                                    id: job.id,
-                                    provider: 'gemini',
-                                    status: data?.job?.status || 'running',
-                                    updatedAt: data?.job?.updated_at || Date.now(),
-                                    error: data?.job?.error || null
-                                }, false);
-
-                                if (parsedSnapshot.full && currentMsg.text !== parsedSnapshot.full) {
-                                    currentMsg.text = parsedSnapshot.full;
-                                    if (parsedSnapshot.tok) currentMsg.tok = parsedSnapshot.tok;
-                                    if (parsedSnapshot.sig) currentMsg.sig = parsedSnapshot.sig;
-                                    saveConvs();
-                                }
-
-                                if (parsedSnapshot.full && !parsedSnapshot.fnCallParts.length) {
-                                    const currentIndex = refreshModelIndex();
-                                    if (currentIndex >= 0) revealMessageText(conversationId, currentIndex, parsedSnapshot.full);
-                                }
-                            }
-                        });
-
-                        updateCurrentModelChatJob({
-                            id: job.id,
-                            provider: 'gemini',
-                            status: snapshot?.job?.status || 'completed',
-                            finishedAt: snapshot?.job?.finished_at || Date.now(),
-                            error: snapshot?.job?.error || null
-                        });
-
-                        if (snapshot?.job?.status === 'failed') {
-                            throw new Error(snapshot?.job?.error?.message || 'Falha ao executar o job Gemini no backend.');
-                        }
-
-                        const { full, tok, sig: textSig, fnCallParts } = parsedSnapshot;
-
-                        if (fnCallParts.length && depth < 6) {
-                            fnCallParts.forEach(part => {
-                                pushToolCallTrace(getCurrentModelMsg(), {
-                                    name: part?.functionCall?.name,
-                                    arguments: part?.functionCall?.args || {}
-                                });
-                            });
-                            const callLabels = fnCallParts.map(p => {
-                                const args = p.functionCall.args || {};
-                                const argStr = Object.entries(args).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ');
-                                return `<code style="background:var(--s2);padding:2px 6px;border-radius:4px">${p.functionCall.name}(${argStr})</code>`;
-                            }).join(' <span style="color:var(--muted)">+</span> ');
-                            const currentBubble = getCurrentModelBubble() || bubEl;
-                            if (currentBubble) currentBubble.innerHTML = `<div style="color:var(--accent2);font-size:13px;display:flex;align-items:center;gap:8px;padding:4px 0;flex-wrap:wrap">
-          <span style="display:inline-block;animation:bop 1s infinite">&#128269;</span>
-          <span>Chamando ${callLabels} ...</span>
-        </div>`;
-                            scrollEnd(true);
-
-                            const results = await Promise.all(
-                                fnCallParts.map(p => executePlugin(p.functionCall.name, p.functionCall.args || {}))
-                            );
-                            results.forEach((result, index) => {
-                                pushToolResultTrace(getCurrentModelMsg(), fnCallParts[index]?.functionCall?.name, result);
-                            });
-                            const currentFiles = results.flatMap(result => extractToolArtifacts(result));
-                            const modelParts = fnCallParts;
-                            const frParts = fnCallParts.map((p, i) => ({
-                                functionResponse: { name: p.functionCall.name, response: results[i] }
-                            }));
-                            const updatedContents = [
-                                ...reqBody.contents,
-                                { role: 'model', parts: modelParts },
-                                { role: 'user', parts: frParts }
-                            ];
-                            const nested = await callAPI({ ...reqBody, contents: updatedContents }, bubEl, depth + 1);
-                            return {
-                                ...nested,
-                                files: mergeMessageFiles(currentFiles, nested?.files || [])
-                            };
-                        }
-
-                        return { full, tok, sig: textSig, files: [] };
-                    }
-                    let full = '';
-                    let tok = 0;
-                    let sig = '';
-                    let modelFiles = [];
-                    const codexTools = usingCodex ? buildCodexTools() : [];
-
-                    async function callCodexAPI(inputItems, depth) {
-                        updateCurrentModelChatJob({
-                            provider: 'codex',
-                            status: 'starting',
-                            pendingRequest: {
-                                provider: 'codex',
-                                model,
-                                reasoning: effectiveThink,
-                                instructions: sysp,
-                                input: inputItems,
-                                tools: codexTools
-                            },
-                            error: null
-                        });
-                        const job = await requestChatJob({
-                            provider: 'codex',
-                            model,
-                            reasoning: effectiveThink,
-                            instructions: sysp,
-                            input: inputItems,
-                            tools: codexTools
-                        }, requestCtrl.signal);
-                        if (!job?.id) throw new Error('Falha ao iniciar o job Codex no backend.');
-
-                        updateCurrentModelChatJob({
-                            id: job.id,
-                            provider: 'codex',
-                            status: job.status || 'running',
-                            startedAt: job.created_at || Date.now(),
-                            pendingRequest: null
-                        });
-
-                        const snapshot = await waitForChatJob(job.id, {
-                            signal: requestCtrl.signal,
-                            pollMs: 400,
-                            onSnapshot(data) {
-                                updateCurrentModelChatJob({
-                                    id: job.id,
-                                    provider: 'codex',
-                                    status: data?.job?.status || 'running',
-                                    updatedAt: data?.job?.updated_at || Date.now(),
-                                    error: data?.job?.error || null
-                                }, false);
-                            }
-                        });
-
-                        updateCurrentModelChatJob({
-                            id: job.id,
-                            provider: 'codex',
-                            status: snapshot?.job?.status || 'completed',
-                            finishedAt: snapshot?.job?.finished_at || Date.now(),
-                            error: snapshot?.job?.error || null
-                        });
-
-                        if (snapshot?.job?.status === 'failed') {
-                            throw new Error(snapshot?.job?.error?.message || 'Falha ao executar o job Codex no backend.');
-                        }
-
-                        const result = snapshot?.result || {};
-                        const payload = result?.payload || {};
-                        const toolCalls = Array.isArray(payload.tool_calls) ? payload.tool_calls : [];
-                        const outputItems = Array.isArray(payload.output_items) ? payload.output_items : [];
-
-                        if (toolCalls.length) {
-                            if (depth >= 6) throw new Error('Limite de function calls atingido para o Codex.');
-                            toolCalls.forEach(call => pushToolCallTrace(getCurrentModelMsg(), call));
-
-                            const callLabels = toolCalls.map(call => {
-                                const args = call.arguments || {};
-                                const argStr = Object.entries(args).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ');
-                                return `<code style="background:var(--s2);padding:2px 6px;border-radius:4px">${call.name}(${argStr})</code>`;
-                            }).join(' <span style="color:var(--muted)">+</span> ');
-
-                            const currentBubble = getCurrentModelBubble() || bub;
-                            if (currentBubble) currentBubble.innerHTML = `<div style="color:var(--accent2);font-size:13px;display:flex;align-items:center;gap:8px;padding:4px 0;flex-wrap:wrap">
-          <span style="display:inline-block;animation:bop 1s infinite">&#128269;</span>
-          <span>Chamando ${callLabels} ...</span>
-        </div>`;
-                            scrollEnd(true);
-
-                            const results = await Promise.all(
-                                toolCalls.map(call => executePlugin(call.name, call.arguments || {}))
-                            );
-                            results.forEach((result, index) => {
-                                pushToolResultTrace(getCurrentModelMsg(), toolCalls[index]?.name, result);
-                            });
-                            const currentFiles = results.flatMap(result => extractToolArtifacts(result));
-                            const assistantToolItems = outputItems.length
-                                ? outputItems
-                                : toolCalls.map(call => ({
-                                    type: 'function_call',
-                                    id: call.id || call.call_id,
-                                    call_id: call.call_id,
-                                    name: call.name,
-                                    arguments: call.arguments_raw || JSON.stringify(call.arguments || {})
-                                }));
-
-                            const nextInput = [
-                                ...inputItems,
-                                ...assistantToolItems,
-                                ...toolCalls.map((call, index) => ({
-                                    type: 'function_call_output',
-                                    call_id: call.call_id,
-                                    output: stringifyCodexToolOutput(results[index])
-                                }))
-                            ];
-
-                            const nested = await callCodexAPI(nextInput, depth + 1);
-                            return {
-                                ...nested,
-                                files: mergeMessageFiles(currentFiles, nested?.files || [])
-                            };
-                        }
-
-                        return {
-                            full: payload.output_text || '',
-                            tok: codexUsageTotalTokens(payload.usage),
-                            files: []
-                        };
-                    }
-                    if (usingCodex) {
-                        const codexResult = await callCodexAPI(buildCodexInputFromMessages(getCurrentHistoryMessages()), 0);
-                        full = codexResult.full || '';
-                        tok = codexResult.tok || 0;
-                        modelFiles = codexResult.files || [];
-                        if (full) {
-                            const currentBubble = getCurrentModelBubble();
-                            if (currentBubble) currentBubble.innerHTML = renderMarkdown(full);
-                            scrollEnd(true);
-                        }
-                    } else {
-                        ({ full, tok, sig, files: modelFiles } = await callAPI(body, bub));
-                    }
-
-                    // â”€ FINALIZE â”€
-                    const currentModelIndex = refreshModelIndex();
-                    const currentModelMessage = getConversationMessage(conversationId, currentModelIndex);
-                    if (currentModelIndex < 0 || !currentModelMessage) {
-                        throw new Error('Resposta em andamento nao encontrada na conversa apos a sincronizacao.');
-                    }
-                    currentModelMessage.text = full || (usingCodex
-                        ? '[Resposta vazia â€” o Codex nÃ£o retornou texto.]'
-                        : '[Resposta vazia â€” o modelo executou ferramentas sem gerar texto.]');
-                    if (!full) {
-                        const emptyBubble = getCurrentModelBubble();
-                        if (emptyBubble) {
-                            emptyBubble.innerHTML = usingCodex
-                                ? `<p style="color:var(--muted);font-style:italic">O Codex respondeu sem texto visÃ­vel.</p>`
-                                : `<p style="color:var(--muted);font-style:italic">O modelo executou ferramentas mas nÃ£o gerou texto de resposta.</p>`;
-                        }
-                    }
-                    const deliveredFiles = Array.isArray(modelFiles) ? modelFiles.length : 0;
-                    if (!full && deliveredFiles) {
-                        currentModelMessage.text = `[Arquivo${deliveredFiles > 1 ? 's' : ''} entregue${deliveredFiles > 1 ? 's' : ''} â€” veja ${deliveredFiles > 1 ? 'os anexos abaixo' : 'o anexo abaixo'}.]`;
-                        const artifactBubble = getCurrentModelBubble();
-                        if (artifactBubble) {
-                            artifactBubble.innerHTML = `<p style="color:var(--muted);font-style:italic">${deliveredFiles > 1 ? `${deliveredFiles} arquivos foram gerados` : 'Arquivo gerado'} e anexado${deliveredFiles > 1 ? 's' : ''} na conversa.</p>`;
-                        }
-                    }
-                    if (tok) currentModelMessage.tok = tok;
-                    if (sig) currentModelMessage.sig = sig;
-                    if (Array.isArray(modelFiles) && modelFiles.length) currentModelMessage.files = modelFiles;
-                    pushMessageTrace(getCurrentModelMsg(), createTraceStep('final', {
-                        title: 'Resposta final',
-                        meta: [
-                            tok ? `${tok.toLocaleString()} tok` : '',
-                            deliveredFiles ? `${deliveredFiles} arquivo${deliveredFiles > 1 ? 's' : ''}` : ''
-                        ].filter(Boolean).join(' â€¢ '),
-                        body: full
-                            ? trimTraceText(full, 420)
-                            : (deliveredFiles
-                                ? `Resposta sem texto, mas com ${deliveredFiles} arquivo${deliveredFiles > 1 ? 's' : ''} entregue${deliveredFiles > 1 ? 's' : ''}.`
-                                : 'Resposta sem texto visivel.')
-                    }));
-
-                    stopMessageReveal(conversationId, currentModelIndex);
-                    const mt = getCurrentModelMeta();
-                    if (mt) {
-                        if (tok) mt.insertAdjacentHTML('beforeend', `<span>${tok.toLocaleString()} tok</span>`);
-                        mt.insertAdjacentHTML('beforeend', `<button class="cp" onclick="copyMsg(${currentModelIndex})">âŽ˜ Copiar Tudo</button>`);
-                        mt.insertAdjacentHTML('beforeend', `<button class="tts-btn" onclick="ttsSpeakMsg(${currentModelIndex})" id="tts-btn-${currentModelIndex}" title="Ouvir resposta">ðŸ”Š</button>`);
-                        // Auto-play TTS if enabled
-                        if (document.getElementById('tts-autoplay')?.checked && !liveMode) ttsSpeakMsg(currentModelIndex);
-                    }
-                    saveConvs();
-                    renderChat(true);
-
-                } catch (err) {
-                    if (err.name === 'AbortError') {
-                        toast('â¹ GeraÃ§Ã£o interrompida.');
-                        const currentIndex = refreshModelIndex();
-                        if (currentIndex !== null && currentIndex >= 0) {
-                            const abortedMsg = getConversationMessage(conversationId, currentIndex);
-                            const shouldDiscardPlaceholder = requestCtrl._stopReason === 'manual';
-                            if (abortedMsg?.role === 'model' && !abortedMsg.text && shouldDiscardPlaceholder && convs?.[conversationId]?.msgs) {
-                                convs[conversationId].msgs.splice(currentIndex, 1);
-                            } else if (abortedMsg?.role === 'model') {
-                                updateMessageChatJob(conversationId, currentIndex, {
-                                    status: shouldDiscardPlaceholder ? 'cancelled' : 'failed',
-                                    finishedAt: Date.now(),
-                                    error: shouldDiscardPlaceholder ? null : { message: 'GeraÃ§Ã£o interrompida.' }
-                                }, false);
-                            }
-                        }
-                    } else {
-                        const friendlyMsg = err.message?.includes('Failed to fetch')
-                            ? 'ðŸŒ Sem conexÃ£o ou o servidor demorou demais. Tente de novo.'
-                            : err.message?.includes('timeout') || err.message?.includes('aborted')
-                            ? 'â± O modelo demorou para responder. Tente novamente ou reduza o Thinking Level.'
-                            : err.message;
-                        if (String(err.message || '').includes('Falha ao salvar')) {
-                            pendingImages = Array.isArray(msgData?.imgs) ? msgData.imgs.map(item => ({ ...item })) : [];
-                            pendingFiles = Array.isArray(msgData?.files) ? msgData.files.map(item => ({ ...item })) : [];
-                            renderImagePreview();
-                        }
-                        const currentIndex = refreshModelIndex();
-                        if (currentIndex !== null && currentIndex >= 0) {
-                            const failedMsg = getConversationMessage(conversationId, currentIndex);
-                            if (failedMsg?.role === 'model') {
-                                failedMsg.text = failedMsg.text || `[Falha: ${friendlyMsg}]`;
-                                pushMessageTrace(failedMsg, createTraceStep('error', {
-                                    title: 'Falha',
-                                    body: friendlyMsg
-                                }));
-                                updateMessageChatJob(conversationId, currentIndex, {
-                                    status: 'failed',
-                                    finishedAt: Date.now(),
-                                    error: { message: friendlyMsg }
-                                }, false);
-                            }
-                        }
-                        toast('âŒ ' + friendlyMsg.slice(0, 70));
-                    }
-                    saveConvs();
-                    renderChat(true);
-                } finally {
-                    clearTimeout(autoAbort);
-                    generationControllers.delete(requestId);
-                    refreshGenerationUi();
-                    renderSidebar();
-                    if (activeId === conversationId) scrollEnd(true);
-                }
+                await chatRuntime.runStandardSend(prepared);
             }
 
             function stop() { return chatRuntime.stop(); }
