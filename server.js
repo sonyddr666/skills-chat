@@ -5,6 +5,10 @@ import { lstat, mkdir, readdir, readFile, rename, rm, unlink, writeFile } from "
 import { createReadStream, createWriteStream, existsSync } from "node:fs";
 import { dirname, extname, join, normalize, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createAuthSession } from "./server/auth/session.js";
+import { createFilesystemModule } from "./server/filesystem/index.js";
+import { createHttpUtils } from "./server/http/utils.js";
+import { createStateModule } from "./server/state/index.js";
 
 const PORT = Number(process.env.PORT || 9321);
 const HOST = "0.0.0.0";
@@ -21,7 +25,6 @@ const credentialsDir = join(systemDir, "credentials");
 const approvalsDir = join(systemDir, "approvals");
 const sharedSystemPromptsDir = join(systemPromptsDir, "_shared");
 const sessionsFile = join(systemDir, "sessions.json");
-let sessionStoreCache = null;
 const TOKEN_URL = "https://auth.openai.com/oauth/token";
 const CODEX_RESPONSES_URL = "https://chatgpt.com/backend-api/codex/responses";
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -105,116 +108,37 @@ const MIME_TYPES = {
   ".txt": "text/plain; charset=utf-8"
 };
 
-function sendJson(res, status, payload, extraHeaders = {}) {
-  res.writeHead(status, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Access-Control-Allow-Origin": "*",
-    "Cross-Origin-Opener-Policy": "same-origin",
-    "Permissions-Policy": "camera=(self), microphone=(self), geolocation=()",
-    "Referrer-Policy": "strict-origin-when-cross-origin",
-    "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "DENY",
-    ...extraHeaders
-  });
-  res.end(JSON.stringify(payload));
-}
+let {
+  attachmentDisposition,
+  clearSessionCookie,
+  enforceRateLimit,
+  getClientIp,
+  parseCookies,
+  parseJsonBody,
+  readRequestBody,
+  sendJson,
+  sendRedirect,
+  sessionCookie
+} = createHttpUtils({
+  defaultRequestBodyLimitBytes: DEFAULT_REQUEST_BODY_LIMIT_BYTES,
+  authRateLimitMaxAttempts: AUTH_RATE_LIMIT_MAX_ATTEMPTS,
+  authRateLimitWindowMs: AUTH_RATE_LIMIT_WINDOW_MS,
+  rateLimitStore,
+  sessionTtlSeconds: SESSION_TTL_SECONDS
+});
 
-function sendRedirect(res, location) {
-  res.writeHead(302, {
-    Location: location,
-    "Cross-Origin-Opener-Policy": "same-origin",
-    "Permissions-Policy": "camera=(self), microphone=(self), geolocation=()",
-    "Referrer-Policy": "strict-origin-when-cross-origin",
-    "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "DENY"
-  });
-  res.end();
-}
+let authGetAuthenticatedUser;
+let authHandleAuthRoutes;
+let authRequireAuth;
 
-function attachmentDisposition(fileName) {
-  const fallback = String(fileName || "download")
-    .replace(/["\\]/g, "_")
-    .replace(/[^\x20-\x7E]+/g, "_")
-    .trim() || "download";
-  const encoded = encodeURIComponent(String(fileName || fallback));
-  return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`;
-}
+let stateHandleStateApi;
+let stateLoadUserState;
+let stateSaveUserState;
 
-async function readRequestBody(req, maxBytes = DEFAULT_REQUEST_BODY_LIMIT_BYTES) {
-  const chunks = [];
-  let total = 0;
-  for await (const chunk of req) {
-    total += chunk.length;
-    if (total > maxBytes) {
-      const error = new Error("Payload too large");
-      error.statusCode = 413;
-      throw error;
-    }
-    chunks.push(chunk);
-  }
-  return Buffer.concat(chunks).toString("utf8");
-}
-
-async function parseJsonBody(req, maxBytes = DEFAULT_REQUEST_BODY_LIMIT_BYTES) {
-  const raw = await readRequestBody(req, maxBytes);
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw);
-  } catch {
-    const error = new Error("Invalid JSON body");
-    error.statusCode = 400;
-    throw error;
-  }
-}
-
-function parseCookies(req) {
-  const raw = req.headers.cookie || "";
-  return raw.split(";").reduce((acc, item) => {
-    const [k, ...rest] = item.trim().split("=");
-    if (!k) return acc;
-    acc[k] = decodeURIComponent(rest.join("="));
-    return acc;
-  }, {});
-}
-
-function isHttpsRequest(req) {
-  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").trim().toLowerCase();
-  if (forwardedProto) {
-    return forwardedProto.split(",")[0].trim() === "https";
-  }
-  return Boolean(req.socket?.encrypted);
-}
-
-function sessionCookie(req, token) {
-  const secure = isHttpsRequest(req) ? "; Secure" : "";
-  return `sf_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_TTL_SECONDS}${secure}`;
-}
-
-function clearSessionCookie(req) {
-  const secure = isHttpsRequest(req) ? "; Secure" : "";
-  return `sf_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
-}
-
-function getClientIp(req) {
-  const forwarded = String(req.headers["x-forwarded-for"] || "").trim();
-  if (forwarded) return forwarded.split(",")[0].trim();
-  return String(req.socket?.remoteAddress || "unknown");
-}
-
-function enforceRateLimit(key, max = AUTH_RATE_LIMIT_MAX_ATTEMPTS, windowMs = AUTH_RATE_LIMIT_WINDOW_MS) {
-  const now = Date.now();
-  const current = rateLimitStore.get(key);
-  const entry = current && current.resetAt > now
-    ? current
-    : { count: 0, resetAt: now + windowMs };
-  entry.count += 1;
-  rateLimitStore.set(key, entry);
-  if (entry.count > max) {
-    const error = new Error("Rate limit exceeded");
-    error.statusCode = 429;
-    throw error;
-  }
-}
+let fsEntryTypeFromStats;
+let fsHandleFsApi;
+let fsNormalizeRelativePath;
+let fsWorkspacePath;
 
 function normalizeLogin(value) {
   return String(value || "").trim().toLowerCase();
@@ -240,44 +164,6 @@ function verifyPassword(password, storedHash) {
   const actual = scryptSync(password, salt, 64);
   const expectedBuffer = Buffer.from(expected, "hex");
   return expectedBuffer.length === actual.length && timingSafeEqual(actual, expectedBuffer);
-}
-
-function sanitizeSessionStore(input) {
-  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
-  const now = Date.now();
-  const next = {};
-  for (const [token, session] of Object.entries(input)) {
-    if (!token || !session || typeof session !== "object") continue;
-    const userId = sanitizeId(session.userId);
-    const expiresAt = Number(session.expiresAt) || 0;
-    const createdAt = Number(session.createdAt) || 0;
-    if (!userId || expiresAt <= now) continue;
-    next[token] = {
-      userId,
-      createdAt: createdAt || now,
-      expiresAt
-    };
-  }
-  return next;
-}
-
-async function loadSessionStore() {
-  if (sessionStoreCache) return sessionStoreCache;
-  await ensureBaseDirs();
-  try {
-    const parsed = JSON.parse(await readFile(sessionsFile, "utf8"));
-    sessionStoreCache = sanitizeSessionStore(parsed);
-  } catch {
-    sessionStoreCache = {};
-  }
-  return sessionStoreCache;
-}
-
-async function persistSessionStore(nextStore) {
-  sessionStoreCache = sanitizeSessionStore(nextStore);
-  await ensureBaseDirs();
-  await writeFile(sessionsFile, `${JSON.stringify(sessionStoreCache, null, 2)}\n`, "utf8");
-  return sessionStoreCache;
 }
 
 async function ensureBaseDirs() {
@@ -373,6 +259,33 @@ async function ensureUserDirs(user) {
   }
 }
 
+({
+  getAuthenticatedUser: authGetAuthenticatedUser,
+  handleAuthRoutes: authHandleAuthRoutes,
+  requireAuth: authRequireAuth
+} = createAuthSession({
+  randomBytes,
+  sessionTtlSeconds: SESSION_TTL_SECONDS,
+  sessionsFile,
+  readFile,
+  writeFile,
+  ensureBaseDirs,
+  loadUsers,
+  saveUsers,
+  ensureUserDirs,
+  sanitizeId,
+  normalizeLogin,
+  hashPassword,
+  verifyPassword,
+  sendJson,
+  parseJsonBody,
+  parseCookies,
+  sessionCookie,
+  clearSessionCookie,
+  getClientIp,
+  enforceRateLimit
+}));
+
 async function createUser(login, password) {
   const normalizedLogin = normalizeLogin(login);
   if (normalizedLogin.length < 3) throw new Error("Login precisa ter pelo menos 3 caracteres");
@@ -435,7 +348,7 @@ async function getAuthenticatedUser(req) {
 }
 
 async function requireAuth(req, res) {
-  const user = await getAuthenticatedUser(req);
+  const user = await authGetAuthenticatedUser(req);
   if (!user) {
     sendJson(res, 401, { error: "Unauthorized" });
     return null;
@@ -709,6 +622,21 @@ function sanitizeUserState(state) {
   return next;
 }
 
+({
+  handleStateApi: stateHandleStateApi,
+  loadUserState: stateLoadUserState,
+  saveUserState: stateSaveUserState
+} = createStateModule({
+  readFile,
+  writeFile,
+  ensureUserDirs,
+  userStateFile,
+  sanitizeUserState,
+  stateKeys: STATE_KEYS,
+  sendJson,
+  parseJsonBody
+}));
+
 function buildApprovalStateSummary(item) {
   return {
     id: item.id,
@@ -721,7 +649,7 @@ function buildApprovalStateSummary(item) {
 }
 
 async function persistApprovalSummary(user, approval) {
-  const state = await loadUserState(user);
+  const state = await stateLoadUserState(user);
   const current = state[APPROVAL_STATE_KEY] && typeof state[APPROVAL_STATE_KEY] === "object"
     ? state[APPROVAL_STATE_KEY]
     : {};
@@ -733,7 +661,7 @@ async function persistApprovalSummary(user, approval) {
     updated_at: new Date().toISOString(),
     recent: recent.slice(0, 100)
   };
-  await saveUserState(user, state);
+  await stateSaveUserState(user, state);
 }
 
 async function loadApprovals(user) {
@@ -792,7 +720,7 @@ function redactApprovalPayload(action, payload) {
   }
   if (safeAction === "fs_delete" || safeAction === "skill_delete" || safeAction === "system_prompt_delete") {
     return {
-      path: source.path ? normalizeRelativePath(source.path) : undefined,
+      path: source.path ? fsNormalizeRelativePath(source.path) : undefined,
       id: source.id ? sanitizeId(source.id) : undefined,
       scope: source.scope ? normalizeSystemPromptScope(source.scope) : undefined
     };
@@ -1283,7 +1211,7 @@ function executionPaths(user, runId) {
 }
 
 function executionRelativePath(runId, fileName) {
-  return normalizeRelativePath(join(".runs", runId, fileName));
+  return fsNormalizeRelativePath(join(".runs", runId, fileName));
 }
 
 function generateRunId() {
@@ -1316,6 +1244,36 @@ function clampExecLogTailBytes(value) {
 function clampFsReadMaxBytes(value) {
   return clampInteger(value, DEFAULT_FS_READ_MAX_BYTES, 256, MAX_FS_READ_MAX_BYTES);
 }
+
+({
+  entryTypeFromStats: fsEntryTypeFromStats,
+  handleFsApi: fsHandleFsApi,
+  normalizeRelativePath: fsNormalizeRelativePath,
+  workspacePath: fsWorkspacePath
+} = createFilesystemModule({
+  lstat,
+  mkdir,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+  createReadStream,
+  dirname,
+  extname,
+  join,
+  relative,
+  resolve,
+  processPlatform: process.platform,
+  mimeTypes: MIME_TYPES,
+  attachmentDisposition,
+  sendJson,
+  parseJsonBody,
+  ensureUserDirs,
+  userWorkspaceDir,
+  clampFsReadMaxBytes,
+  requireApprovedAction
+}));
 
 function clampApprovalTtlMs(value) {
   return clampInteger(value, DEFAULT_APPROVAL_TTL_MS, 60 * 1000, MAX_APPROVAL_TTL_MS);
@@ -1391,7 +1349,7 @@ function normalizeExecPayload(input) {
     command,
     args,
     shell,
-    cwd: normalizeRelativePath(input.cwd || ""),
+    cwd: fsNormalizeRelativePath(input.cwd || ""),
     env: normalizeExecEnv(input.env),
     stdin: input.stdin === undefined || input.stdin === null ? "" : String(input.stdin),
     timeoutMs: clampExecTimeoutMs(input.timeout_ms)
@@ -1548,7 +1506,7 @@ function buildExecutionSummary(meta) {
 }
 
 async function persistExecutionSummary(user, summary) {
-  const state = await loadUserState(user);
+  const state = await stateLoadUserState(user);
   const current = state[EXECUTION_STATE_KEY] && typeof state[EXECUTION_STATE_KEY] === "object"
     ? state[EXECUTION_STATE_KEY]
     : {};
@@ -1562,7 +1520,7 @@ async function persistExecutionSummary(user, summary) {
     updated_at: new Date().toISOString(),
     recent: recent.slice(0, MAX_EXEC_HISTORY_ITEMS)
   };
-  await saveUserState(user, state);
+  await stateSaveUserState(user, state);
 }
 
 async function persistExecutionMeta(user, meta) {
@@ -1648,7 +1606,7 @@ async function listExecutionHistory(user, limit) {
 async function createExecution(user, input) {
   const payload = normalizeExecPayload(input);
   const policy = validateExecPolicy(payload);
-  const workdir = workspacePath(user, payload.cwd);
+  const workdir = fsWorkspacePath(user, payload.cwd);
   const approval = await requireApprovedAction(
     user,
     input?.approval_id,
@@ -3419,7 +3377,7 @@ async function serveStatic(req, res, user) {
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host}`);
-  const user = await getAuthenticatedUser(req);
+  const user = await authGetAuthenticatedUser(req);
 
   if (url.pathname === "/health") {
     sendJson(res, 200, {
@@ -3434,7 +3392,7 @@ const server = createServer(async (req, res) => {
 
   if (url.pathname.startsWith("/auth/")) {
     try {
-      await handleAuthRoutes(req, res, url);
+      await authHandleAuthRoutes(req, res, url);
     } catch (error) {
       sendJson(res, error.statusCode || 500, { error: `auth failed: ${error.message}` });
     }
@@ -3442,7 +3400,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname.startsWith("/api/")) {
-    const authUser = user || await requireAuth(req, res);
+    const authUser = user || await authRequireAuth(req, res);
     if (!authUser) return;
 
     try {
@@ -3471,7 +3429,7 @@ const server = createServer(async (req, res) => {
         return;
       }
       if (url.pathname === "/api/state") {
-        await handleStateApi(req, res, authUser);
+        await stateHandleStateApi(req, res, authUser);
         return;
       }
       if (url.pathname === "/api/skills" || url.pathname.startsWith("/api/skills/")) {
@@ -3487,7 +3445,7 @@ const server = createServer(async (req, res) => {
         return;
       }
       if (url.pathname.startsWith("/api/fs/")) {
-        await handleFsApi(req, res, url, authUser);
+        await fsHandleFsApi(req, res, url, authUser);
         return;
       }
       sendJson(res, 404, { error: "Not found" });
