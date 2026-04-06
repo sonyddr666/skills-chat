@@ -2854,6 +2854,7 @@
                     tts_configured: false
                 }
             };
+            const conversationApprovalGrants = new Map();
             const GEMINI_THINKING_OPTIONS = [
                 { value: '', label: 'auto (padrao)' },
                 { value: 'minimal', label: 'minimal' },
@@ -3240,6 +3241,96 @@
                     method: 'POST'
                 });
                 return data.item || null;
+            }
+
+            function setConversationGrantCache(conversationId, grant) {
+                const key = String(conversationId || '').trim();
+                if (!key || !grant) return;
+                conversationApprovalGrants.set(key, {
+                    expires_at: grant.expires_at || null,
+                    allowed_actions: Array.isArray(grant.allowed_actions) ? grant.allowed_actions : ['*']
+                });
+            }
+
+            function hasConversationGrant(conversationId, action) {
+                const key = String(conversationId || '').trim();
+                if (!key) return false;
+                const grant = conversationApprovalGrants.get(key);
+                if (!grant) return false;
+                if (grant.expires_at && Date.parse(grant.expires_at) <= Date.now()) {
+                    conversationApprovalGrants.delete(key);
+                    return false;
+                }
+                const allowed = Array.isArray(grant.allowed_actions) ? grant.allowed_actions : ['*'];
+                return allowed.includes('*') || allowed.includes(action);
+            }
+
+            async function refreshConversationGrantCache() {
+                try {
+                    const data = await fetchLocalJson('/api/approvals');
+                    conversationApprovalGrants.clear();
+                    const items = Array.isArray(data.items) ? data.items : [];
+                    items.forEach(item => {
+                        if (item?.kind !== 'conversation_grant') return;
+                        if (item?.status !== 'approved') return;
+                        if (!item?.conversation_id) return;
+                        if (item?.expires_at && Date.parse(item.expires_at) <= Date.now()) return;
+                        setConversationGrantCache(item.conversation_id, item);
+                    });
+                } catch (error) {
+                    console.warn('[Approvals] Falha ao carregar grants da conversa:', error?.message || error);
+                }
+            }
+
+            async function ensureSensitiveActionAuthorization(action, payload, options = {}) {
+                const normalizedAction = String(action || '').trim();
+                const conversationId = String(options.conversationId || activeId || '').trim();
+                if (conversationId && hasConversationGrant(conversationId, normalizedAction)) {
+                    return { conversation_id: conversationId };
+                }
+
+                const choice = window.prompt(
+                    `Acao sensivel: ${normalizedAction}\n1 = aprovar so esta acao\n2 = aprovar todas as acoes sensiveis desta conversa por 24h\n0 = cancelar`,
+                    conversationId ? '2' : '1'
+                );
+
+                if (!choice || choice === '0') {
+                    throw new Error('Acao cancelada pelo usuario.');
+                }
+
+                if (choice === '2') {
+                    if (!conversationId) {
+                        throw new Error('Conversa ativa ausente para criar grant de 24h.');
+                    }
+                    const grant = await createBackendApprovalRequest({
+                        kind: 'conversation_grant',
+                        action: normalizedAction,
+                        reason: `Aprovar todas as acoes sensiveis da conversa ${conversationId} por 24h`,
+                        risk: 'alto',
+                        conversation_id: conversationId,
+                        allowed_actions: ['*'],
+                        expires_in_ms: 24 * 60 * 60 * 1000,
+                        payload: payload || {}
+                    });
+                    if (!grant?.id) throw new Error('Falha ao criar grant de conversa.');
+                    const approvedGrant = await approveBackendApprovalRequest(grant.id);
+                    setConversationGrantCache(conversationId, approvedGrant);
+                    return { conversation_id: conversationId };
+                }
+
+                const approval = await createBackendApprovalRequest({
+                    action: normalizedAction,
+                    reason: `Aprovar acao sensivel ${normalizedAction}`,
+                    risk: 'alto',
+                    conversation_id: conversationId || undefined,
+                    payload: payload || {}
+                });
+                if (!approval?.id) throw new Error('Falha ao criar approval.');
+                const approved = await approveBackendApprovalRequest(approval.id);
+                return {
+                    approval_id: approved.id,
+                    conversation_id: conversationId || undefined
+                };
             }
 
             function summarizePlugin(plugin) {
@@ -3648,6 +3739,7 @@
                     },
                     action: {
                         type: 'http',
+                        sensitiveAction: 'ghost_search',
                         method: 'POST',
                         url: '/api/ghost-search',
                         headers: { 'Content-Type': 'application/json' },
@@ -3775,6 +3867,7 @@
                     },
                     action: {
                         type: 'http',
+                        sensitiveAction: 'fs_delete',
                         method: 'DELETE',
                         url: '/api/fs/delete?path={{path}}&approval_id={{approval_id}}'
                     }
@@ -3968,15 +4061,13 @@ return await createBackendApprovalRequest({
             }
 
             async function deleteCustomPluginOnServer(id) {
-                const approval = await createBackendApprovalRequest({
-                    action: 'skill_delete',
-                    reason: `Excluir skill customizada ${id}`,
-                    risk: 'medio',
-                    payload: { id }
+                const authz = await ensureSensitiveActionAuthorization('skill_delete', { id }, {
+                    conversationId: activeId || ''
                 });
-                if (!approval?.id) throw new Error('Falha ao criar approval para deletar skill.');
-                await approveBackendApprovalRequest(approval.id);
-                const res = await fetch('/api/skills/' + encodeURIComponent(id) + '?approval_id=' + encodeURIComponent(approval.id), { method: 'DELETE' });
+                const url = new URL('/api/skills/' + encodeURIComponent(id), location.origin);
+                if (authz.approval_id) url.searchParams.set('approval_id', authz.approval_id);
+                if (authz.conversation_id) url.searchParams.set('conversation_id', authz.conversation_id);
+                const res = await fetch(url.pathname + url.search, { method: 'DELETE' });
                 if (!res.ok) {
                     let msg = 'HTTP ' + res.status;
                     try { const err = await res.json(); msg = err.error || msg; } catch (_) { }
@@ -4109,6 +4200,11 @@ return await createBackendApprovalRequest({
                         }
                     });
                 }
+
+                const authz = await ensureSensitiveActionAuthorization('exec', payload, {
+                    conversationId: activeId || ''
+                });
+                Object.assign(payload, authz);
 
                 try {
                     const created = await fetchLocalJson('/api/exec', {
@@ -4601,7 +4697,7 @@ return await createBackendApprovalRequest({
                     try {
                         const method = (p.action.method || 'GET').toUpperCase();
                         const actionArgs = { ...(p.action.defaults || {}), ...(args || {}) };
-                        const url = resolveTemplate(p.action.url, actionArgs);
+                        let url = resolveTemplate(p.action.url, actionArgs);
                         const headers = {};
                         if (p.action.headers) {
                             Object.entries(p.action.headers).forEach(([k, v]) => {
@@ -4614,6 +4710,37 @@ return await createBackendApprovalRequest({
                             if (p.action.pruneEmpty) bodyPayload = pruneEmptyFields(bodyPayload);
                             fetchOpts.body = JSON.stringify(bodyPayload);
                             headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+                        }
+                        if (p.action.sensitiveAction) {
+                            const authz = await ensureSensitiveActionAuthorization(p.action.sensitiveAction, {
+                                url,
+                                method,
+                                args: actionArgs,
+                                body: fetchOpts.body ? JSON.parse(fetchOpts.body) : null
+                            }, {
+                                conversationId: activeId || ''
+                            });
+                            if (authz.approval_id) {
+                                const urlObj = new URL(url, location.origin);
+                                urlObj.searchParams.set('approval_id', authz.approval_id);
+                                if (authz.conversation_id) urlObj.searchParams.set('conversation_id', authz.conversation_id);
+                                if (fetchOpts.body && headers['Content-Type']?.includes('application/json')) {
+                                    const parsedBody = JSON.parse(fetchOpts.body);
+                                    parsedBody.approval_id = authz.approval_id;
+                                    if (authz.conversation_id) parsedBody.conversation_id = authz.conversation_id;
+                                    fetchOpts.body = JSON.stringify(parsedBody);
+                                }
+                                url = urlObj.pathname + urlObj.search;
+                            } else if (authz.conversation_id) {
+                                const urlObj = new URL(url, location.origin);
+                                urlObj.searchParams.set('conversation_id', authz.conversation_id);
+                                if (fetchOpts.body && headers['Content-Type']?.includes('application/json')) {
+                                    const parsedBody = JSON.parse(fetchOpts.body);
+                                    parsedBody.conversation_id = authz.conversation_id;
+                                    fetchOpts.body = JSON.stringify(parsedBody);
+                                }
+                                url = urlObj.pathname + urlObj.search;
+                            }
                         }
                         const res = await fetch(url, fetchOpts);
                         const text = await res.text();
@@ -7539,6 +7666,7 @@ return await createBackendApprovalRequest({
                 await refreshRuntimeConfig();
                 loadCfg();
                 await loadPlugins();
+                await refreshConversationGrantCache();
                 initMermaid();
                 bindConversationStorageSync();
                 renderSidebar();

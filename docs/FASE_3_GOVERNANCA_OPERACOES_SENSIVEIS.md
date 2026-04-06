@@ -29,6 +29,18 @@ Cada approval guarda:
 - criacao, expiracao e atualizacao
 - trilha de auditoria
 
+Agora existem dois modos:
+
+- `single_action`: aprova apenas uma operacao
+- `conversation_grant`: aprova a conversa por janela longa
+
+Grant de conversa:
+
+- vinculado a `conversation_id`
+- aprovado por 24 horas
+- pode liberar `*` ou lista de acoes
+- nao e consumido no primeiro uso; ele registra uso e continua valido ate expirar
+
 ### 2. Enforcement real no servidor
 
 Agora exigem `approval_id` valido:
@@ -81,6 +93,7 @@ Checks novos:
 - lifecycle basico de approval
 - delete sem approval bloqueado
 - delete com approval aprovado
+- grant de conversa reutilizavel por 24h
 - integracao externa sem approval bloqueada
 
 Smoke adicional com exec habilitado:
@@ -89,8 +102,10 @@ Smoke adicional com exec habilitado:
 - `SMOKE_ENABLE_EXEC_APPROVAL=1`
 - resultado: `21 checks, 0 falhas, 2 skips`
 - `exec com approval server-side` passou
+- `exec` com grant de conversa tambem passou
 
 ## Observacoes
 
 - approvals agora existem de verdade no backend, mas a experiencia de aprovacao ainda e minima; o servidor ja virou autoridade.
+- a UI agora pode oferecer duas decisoes para acao sensivel: aprovar so esta acao ou aprovar todas as acoes sensiveis da conversa por 24h.
 - chat/TTS continuam fora do escopo de approval obrigatoria porque nao entram como operacao sensivel desta fase.

@@ -48,6 +48,7 @@ Servidor padrao:
 - approval valida dono, status, acao e expiracao antes da execucao
 - approvals ficam auditaveis e sao consumidos quando usados
 - `exec` ganhou perfil de comando, auditoria, timeout por perfil e restricoes extras de policy
+- agora tambem existe grant de conversa por 24h para aprovar acoes sensiveis dessa conversa
 
 ## Flags de Ambiente
 
@@ -86,6 +87,7 @@ Checks atuais:
 - `POST /api/exec` bloqueado por padrao
 - validar sessao entre requests e apos restart
 - validar approvals, delete com approval e bloqueio sem approval
+- validar grant de conversa reutilizavel por 24h
 
 Smoke adicional com exec habilitado:
 

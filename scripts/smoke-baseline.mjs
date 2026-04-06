@@ -385,6 +385,33 @@ async function runCoreSmoke() {
   }
 
   {
+    await fetchJson("/api/fs/write", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: "smoke/delete-with-grant.txt",
+        content: `delete-with-grant-${suffix}`,
+        create_dirs: true
+      })
+    }, cookieJar);
+    const conversationId = `conv_smoke_${suffix}`;
+    const grant = await createApproval(cookieJar, {
+      kind: "conversation_grant",
+      action: "fs_delete",
+      reason: "Smoke conversation grant",
+      conversation_id: conversationId,
+      allowed_actions: ["*"],
+      payload: { path: "smoke/delete-with-grant.txt" }
+    });
+    await approveApproval(cookieJar, grant.id);
+    const deleted = await fetchJson(`/api/fs/delete?path=smoke%2Fdelete-with-grant.txt&conversation_id=${encodeURIComponent(conversationId)}`, {
+      method: "DELETE"
+    }, cookieJar);
+    assert(deleted.response.ok, "delete with conversation grant should return 200");
+    mark("grant de conversa reutilizavel por 24h", "PASS", conversationId);
+  }
+
+  {
     const { response, body } = await fetchJsonExpectingAnyStatus("/api/ghost-search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -492,9 +519,13 @@ async function runOptionalExecApprovalSmoke() {
   const password = "1234";
   await registerUser(login, password, cookieJar);
 
+  const conversationId = `conv_exec_${suffix}`;
   const approval = await createApproval(cookieJar, {
+    kind: "conversation_grant",
     action: "exec",
-    reason: "Smoke exec approval",
+    reason: "Smoke exec conversation grant",
+    conversation_id: conversationId,
+    allowed_actions: ["*"],
     payload: {
       command: "node",
       args: ["--version"],
@@ -509,7 +540,7 @@ async function runOptionalExecApprovalSmoke() {
     body: JSON.stringify({
       command: "node",
       args: ["--version"],
-      approval_id: approval.id
+      conversation_id: conversationId
     })
   }, cookieJar);
   assert(created.response.status === 202, "exec with approval should queue");

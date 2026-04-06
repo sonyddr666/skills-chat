@@ -812,21 +812,37 @@ function normalizeApprovalPayload(input, user) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new Error("Payload de approval invalido");
   }
+  const kind = String(input.kind || "single_action").trim().toLowerCase() === "conversation_grant"
+    ? "conversation_grant"
+    : "single_action";
   const action = normalizeApprovalAction(input.action);
   if (!action) throw new Error("action ausente");
   const reason = String(input.reason || "").trim();
   if (!reason) throw new Error("reason ausente");
   const risk = String(input.risk || "medio").trim().toLowerCase().slice(0, 40) || "medio";
   const redactedPayload = redactApprovalPayload(action, input.payload);
+  const conversationId = normalizeConversationId(input.conversation_id);
+  const allowedActions = kind === "conversation_grant"
+    ? (Array.isArray(input.allowed_actions) ? input.allowed_actions : ["*"])
+      .map((value) => normalizeApprovalAction(value))
+      .filter(Boolean)
+    : [action];
+  if (kind === "conversation_grant" && !conversationId) {
+    throw new Error("conversation_id ausente");
+  }
   const now = Date.now();
-  const ttlMs = clampApprovalTtlMs(input.expires_in_ms ?? input.ttl_ms);
+  const ttlMs = clampApprovalTtlMs(input.expires_in_ms ?? input.ttl_ms ?? (kind === "conversation_grant" ? 24 * 60 * 60 * 1000 : DEFAULT_APPROVAL_TTL_MS));
   const createdAt = new Date(now).toISOString();
   return {
     id: generateApprovalId(),
+    kind,
     action,
     reason,
     risk,
     status: "pending",
+    conversation_id: conversationId || null,
+    allowed_actions: allowedActions.length ? allowedActions : [action],
+    used_count: 0,
     requested_by_user_id: user.id,
     requested_by_login: user.login,
     payload_redacted: redactedPayload,
@@ -881,14 +897,26 @@ async function upsertApproval(user, approval) {
   return approval;
 }
 
+function approvalAllowsAction(approval, action, conversationId) {
+  if (!approval || approval.kind !== "conversation_grant") return false;
+  if (approval.status !== "approved") return false;
+  if (approval.conversation_id !== conversationId) return false;
+  const allowedActions = Array.isArray(approval.allowed_actions) ? approval.allowed_actions : [];
+  return allowedActions.includes("*") || allowedActions.includes(action);
+}
+
 function serializeApproval(approval) {
   if (!approval) return null;
   return {
     id: approval.id,
+    kind: approval.kind || "single_action",
     action: approval.action,
+    conversation_id: approval.conversation_id || null,
+    allowed_actions: Array.isArray(approval.allowed_actions) ? approval.allowed_actions : [approval.action].filter(Boolean),
     reason: approval.reason,
     risk: approval.risk,
     status: approval.status,
+    used_count: Number(approval.used_count || 0) || 0,
     requested_by_user_id: approval.requested_by_user_id,
     requested_by_login: approval.requested_by_login,
     payload_redacted: approval.payload_redacted,
@@ -904,10 +932,38 @@ function serializeApproval(approval) {
   };
 }
 
-async function requireApprovedAction(user, approvalId, expectedAction, consumeMeta = null) {
+async function requireApprovedAction(user, approvalId, expectedAction, consumeMeta = null, options = {}) {
   const normalizedAction = normalizeApprovalAction(expectedAction);
   const id = String(approvalId || "").trim();
+  const conversationId = normalizeConversationId(options.conversationId);
   if (!id) {
+    if (conversationId) {
+      const approvals = await loadApprovals(user);
+      const nextApprovals = approvals.map((item) => touchApprovalExpiration(item, user));
+      const grant = nextApprovals.find((item) => approvalAllowsAction(item, normalizedAction, conversationId));
+      if (grant) {
+        const now = new Date().toISOString();
+        const updatedGrant = {
+          ...grant,
+          used_count: Number(grant.used_count || 0) + 1,
+          updated_at: now,
+          audit: [
+            ...(Array.isArray(grant.audit) ? grant.audit : []),
+            {
+              at: now,
+              actor_user_id: user.id,
+              actor_login: user.login,
+              event: "grant_used",
+              action: normalizedAction,
+              meta: consumeMeta || null
+            }
+          ]
+        };
+        await saveApprovals(user, nextApprovals.map((item) => (item.id === updatedGrant.id ? updatedGrant : item)));
+        await persistApprovalSummary(user, updatedGrant);
+        return updatedGrant;
+      }
+    }
     const error = new Error("approval_id ausente");
     error.statusCode = 403;
     throw error;
@@ -922,6 +978,33 @@ async function requireApprovedAction(user, approvalId, expectedAction, consumeMe
     const error = new Error("approval nao pertence ao usuario autenticado");
     error.statusCode = 403;
     throw error;
+  }
+  if (approval.kind === "conversation_grant") {
+    if (!approvalAllowsAction(approval, normalizedAction, conversationId || approval.conversation_id)) {
+      const error = new Error(`grant invalido para a acao ${normalizedAction}`);
+      error.statusCode = 403;
+      throw error;
+    }
+    const now = new Date().toISOString();
+    const updatedGrant = {
+      ...approval,
+      used_count: Number(approval.used_count || 0) + 1,
+      updated_at: now,
+      audit: [
+        ...(Array.isArray(approval.audit) ? approval.audit : []),
+        {
+          at: now,
+          actor_user_id: user.id,
+          actor_login: user.login,
+          event: "grant_used",
+          action: normalizedAction,
+          meta: consumeMeta || null
+        }
+      ]
+    };
+    await saveApprovals(user, approvals.map((item) => (item.id === updatedGrant.id ? updatedGrant : item)));
+    await persistApprovalSummary(user, updatedGrant);
+    return updatedGrant;
   }
   if (approval.action !== normalizedAction) {
     const error = new Error(`approval invalido para a acao ${normalizedAction}`);
@@ -1248,6 +1331,7 @@ function parseOptionalBoolean(value, fallback) {
 }
 
 function normalizeApprovalAction(value) {
+  if (String(value || "").trim() === "*") return "*";
   return String(value || "")
     .trim()
     .toLowerCase()
@@ -1258,6 +1342,14 @@ function normalizeApprovalAction(value) {
 
 function generateApprovalId() {
   return `appr_${Date.now().toString(36)}_${randomBytes(5).toString("hex")}`;
+}
+
+function normalizeConversationId(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9:_-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 160);
 }
 
 function normalizeExecEnv(input) {
@@ -1400,6 +1492,7 @@ function buildExecutionRequestSnapshot(payload, cwd) {
     args: payload.args,
     shell: payload.shell,
     cwd: cwd || ".",
+    conversation_id: payload.conversationId || null,
     timeout_ms: payload.timeoutMs,
     stdin_bytes: Buffer.byteLength(payload.stdin || "", "utf8"),
     env_keys: Object.keys(payload.env),
@@ -1417,6 +1510,7 @@ function buildExecutionMeta(payload, runId, cwd) {
     args: payload.args,
     shell: payload.shell,
     cwd: cwd || ".",
+    conversation_id: payload.conversationId || null,
     timeout_ms: payload.timeoutMs,
     env_keys: Object.keys(payload.env),
     profile: payload.profile || inferExecProfile(payload),
@@ -1564,6 +1658,9 @@ async function createExecution(user, input) {
       command: payload.command,
       cwd: workdir.rel || ".",
       profile: policy.profile
+    },
+    {
+      conversationId: input?.conversation_id
     }
   );
   const runId = generateRunId();
@@ -1572,7 +1669,8 @@ async function createExecution(user, input) {
   const execPayload = {
     ...payload,
     approvalId: approval.id,
-    profile: policy.profile
+    profile: policy.profile,
+    conversationId: normalizeConversationId(input?.conversation_id)
   };
 
   await mkdir(paths.dir, { recursive: true });
@@ -2629,6 +2727,8 @@ async function handleGhostSearch(req, res, user) {
     await requireApprovedAction(user, payload.approval_id, "ghost_search", {
       route: "/api/ghost-search",
       query: String(payload.query || "").trim().slice(0, 120)
+    }, {
+      conversationId: payload.conversation_id
     });
     delete payload.approval_id;
     if (!payload.user_id) payload.user_id = user.id;
@@ -2690,6 +2790,8 @@ async function handleSkillsApi(req, res, url, user) {
     await requireApprovedAction(user, url.searchParams.get("approval_id"), "skill_delete", {
       route: "/api/skills/:id",
       id
+    }, {
+      conversationId: url.searchParams.get("conversation_id")
     });
     await unlink(filePath);
     sendJson(res, 200, { ok: true, id });
@@ -2754,6 +2856,8 @@ async function handleSystemPromptsApi(req, res, url, user) {
       route: "/api/system-prompts/:scope/:id",
       id,
       scope
+    }, {
+      conversationId: url.searchParams.get("conversation_id")
     });
     await unlink(existingRecord.filePath);
     sendJson(res, 200, { ok: true, id, scope });
@@ -2920,6 +3024,8 @@ async function handleFsApi(req, res, url, user) {
     await requireApprovedAction(user, url.searchParams.get("approval_id"), "fs_delete", {
       route: "/api/fs/delete",
       path: requestedPath
+    }, {
+      conversationId: url.searchParams.get("conversation_id")
     });
     await rm(absolute, { recursive: true, force: false });
     sendJson(res, 200, { ok: true, path: rel });
