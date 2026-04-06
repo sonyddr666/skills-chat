@@ -21,6 +21,7 @@
         'gc_pending_approvals',
         'gc_skill_packs'
     ]);
+    const storageSync = window.SkillFlowStorage;
 
     let currentUser = null;
     let lastSnapshot = '';
@@ -35,13 +36,6 @@
     const HEALTH_POLL_MS = 15000;
     let syncPaused = false;
     let backendOnline = true;
-
-    function isQuotaExceededError(error) {
-        return error?.name === 'QuotaExceededError'
-            || error?.name === 'NS_ERROR_DOM_QUOTA_REACHED'
-            || error?.code === 22
-            || error?.code === 1014;
-    }
 
     function compactConversationState(value, maxConversations = 15, maxMessagesPerConversation = 60) {
         if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
@@ -83,19 +77,16 @@
     }
 
     function clearTrackedState() {
-        for (const key of STATE_KEYS) localStorage.removeItem(key);
+        storageSync.clearTrackedState(STATE_KEYS);
     }
 
     function stateValueFromStorage(key) {
-        const raw = localStorage.getItem(key);
-        if (raw === null) return undefined;
-        if (!JSON_STATE_KEYS.has(key)) return raw;
-        try { return JSON.parse(raw); } catch (_) { return raw; }
+        return storageSync.stateValueFromStorage(key);
     }
 
     function writeStateValue(key, value) {
         if (value === undefined) {
-            localStorage.removeItem(key);
+            storageSync.remove(key);
             return;
         }
         try {
@@ -103,12 +94,12 @@
                 const serializedValue = key === 'gc_convs'
                     ? compactConversationState(value)
                     : value;
-                localStorage.setItem(key, JSON.stringify(serializedValue));
+                storageSync.setJson(key, serializedValue, { silent: true });
                 return;
             }
-            localStorage.setItem(key, String(value));
+            storageSync.set(key, value, { silent: true });
         } catch (error) {
-            if (isQuotaExceededError(error)) {
+            if (storageSync.isQuotaExceededError(error)) {
                 console.warn('[Sync] Estado local excedeu a cota do navegador para', key);
                 return;
             }

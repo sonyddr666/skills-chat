@@ -20,6 +20,7 @@
         href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" id="hljs-theme">
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="./app/storage-sync.js"></script>
     <script src="./account.js"></script>
     <script src="./app/api-client.js"></script>
     <link rel="stylesheet" href="./mobile.css?v=2">
@@ -3013,7 +3014,7 @@
             }
 
             function loadLiveVoiceCfg() {
-                const voice = localStorage.getItem('gc_live_voice') || 'Puck';
+                const voice = storageSync.get('gc_live_voice', 'Puck');
                 const sel = document.getElementById('live-voice-sel');
                 if (sel) sel.value = voice;
             }
@@ -3040,6 +3041,7 @@
                 }
             };
             const apiClient = window.SkillFlowApi;
+            const storageSync = window.SkillFlowStorage;
             const conversationApprovalGrants = new Map();
             let approvalItems = [];
             const GEMINI_THINKING_OPTIONS = [
@@ -3107,39 +3109,15 @@
             }
 
             function readCfg() {
-                try {
-                    return JSON.parse(localStorage.getItem('gc_cfg') || '{}');
-                } catch (_) {
-                    return {};
-                }
-            }
-
-            function isQuotaExceededError(error) {
-                return error?.name === 'QuotaExceededError'
-                    || error?.name === 'NS_ERROR_DOM_QUOTA_REACHED'
-                    || error?.code === 22
-                    || error?.code === 1014;
+                return storageSync.getJson('gc_cfg', {});
             }
 
             function setStorageItem(key, value, options = {}) {
-                try {
-                    localStorage.setItem(key, value);
-                    return true;
-                } catch (error) {
-                    if (!isQuotaExceededError(error)) {
-                        console.warn(`[Storage] Falha ao salvar ${key}:`, error);
-                        return false;
-                    }
-                    if (typeof options.onQuota === 'function') {
-                        return options.onQuota(error) === true;
-                    }
-                    if (!options.silent) toast('âš  Armazenamento local cheio.');
-                    return false;
-                }
+                return storageSync.set(key, value, options);
             }
 
             function writeCfg(cfg) {
-                setStorageItem('gc_cfg', JSON.stringify(cfg), { silent: true });
+                storageSync.setJson('gc_cfg', cfg, { silent: true });
             }
 
             function ensureCodexModels() {
@@ -3823,7 +3801,7 @@
                 },
                 async get_workspace_context(args) {
                     const cfg = readCfg();
-                    const memory = JSON.parse(localStorage.getItem('gc_user_memory') || '{}');
+                    const memory = storageSync.getJson('gc_user_memory', {});
                     const user = window.__skillflowAccount?.getUser?.() || null;
                     const workspaceSkills = await discoverWorkspaceSkillCandidates(args.path || '');
                     return {
@@ -4157,7 +4135,7 @@
                         required: ['key', 'value']
                     },
                     code: `
-const bag = JSON.parse(localStorage.getItem('gc_user_memory') || '{}');
+const bag = storageSync.getJson('gc_user_memory', {});
 const ns = args.namespace || 'user';
 if (!bag[ns]) bag[ns] = {};
 bag[ns][args.key] = { value: args.value, updated_at: new Date().toISOString() };
@@ -4175,7 +4153,7 @@ return { ok: true, namespace: ns, key: args.key, stored: bag[ns][args.key] };`
                         }
                     },
                     code: `
-const bag = JSON.parse(localStorage.getItem('gc_user_memory') || '{}');
+const bag = storageSync.getJson('gc_user_memory', {});
 const ns = args.namespace || 'user';
 if (!bag[ns]) return { namespace: ns, entries: {} };
 if (args.key) return { namespace: ns, key: args.key, value: bag[ns][args.key] ?? null };
@@ -4344,7 +4322,7 @@ return await createBackendApprovalRequest({
             }
 
             async function loadPlugins() {
-                const stored = JSON.parse(localStorage.getItem('gc_plugins') || 'null');
+                const stored = storageSync.getJson('gc_plugins', null);
                 try {
                     const customs = await fetchCustomPlugins();
                     plugins = mergePlugins(DEFAULT_PLUGINS, customs, stored);
@@ -5377,7 +5355,7 @@ return await createBackendApprovalRequest({
             }
 
             // â”€ PERSIST â”€
-            var convs = JSON.parse(localStorage.getItem('gc_convs') || '{}');
+            var convs = storageSync.getJson('gc_convs', {});
             var activeId = null;
             let generationControllers = new Map();
             let generationSeq = 0;
@@ -5490,12 +5468,12 @@ return await createBackendApprovalRequest({
 
             function loadCfg() {
                 ensureCodexModels();
-                const theme = localStorage.getItem('gc_theme') || 'dark';
+                const theme = storageSync.get('gc_theme', 'dark');
                 document.documentElement.setAttribute('data-theme', theme);
                 document.getElementById('theme-btn').textContent = theme === 'dark' ? 'ðŸŒ™' : 'â˜€ï¸';
 
                 const s = readCfg();
-                const savedActiveId = localStorage.getItem('gc_activeId');
+                const savedActiveId = storageSync.get('gc_activeId', '');
                 if (savedActiveId && convs[savedActiveId]) activeId = savedActiveId;
                 if (s.model) {
                     const sel = document.getElementById('model-sel');
@@ -6254,7 +6232,7 @@ return await createBackendApprovalRequest({
             }
 
             function saveConvs() {
-                const storedConversations = parseStoredConversationMap(localStorage.getItem('gc_convs') || '{}');
+                const storedConversations = parseStoredConversationMap(storageSync.get('gc_convs', '{}'));
                 const merged = mergeConversationMaps(convs, storedConversations);
                 convs = merged;
                 const compacted = compactConversationsForStorage(merged);
@@ -7937,7 +7915,7 @@ return await createBackendApprovalRequest({
                     console.warn('Falha ao carregar conta:', error?.message || error);
                 }
 
-                convs = JSON.parse(localStorage.getItem('gc_convs') || '{}');
+                convs = storageSync.getJson('gc_convs', {});
                 if (normalizeStoredConversations()) saveConvs();
                 if (!activeId || !convs[activeId]) {
                     activeId = Object.keys(convs)
@@ -7954,7 +7932,7 @@ return await createBackendApprovalRequest({
                 renderChat();
                 resumePendingChatJobs();
                 // Restore sidebar collapsed state on desktop
-                if (window.innerWidth > 768 && localStorage.getItem('gc_sb_collapsed') === '1') {
+                if (window.innerWidth > 768 && storageSync.get('gc_sb_collapsed') === '1') {
                     document.getElementById('sidebar').classList.add('collapsed');
                     document.body.classList.add('sb-collapsed');
                 }
@@ -7975,7 +7953,7 @@ return await createBackendApprovalRequest({
             let isListening = false;
             let speechBase = '';
             let micStream = null;
-            let micPermissionState = localStorage.getItem('gc_mic_permission') || 'unknown';
+            let micPermissionState = storageSync.get('gc_mic_permission', 'unknown');
             let speechRestartTimer = null;
             let speechRestartAttempts = 0;
             let speechNoSpeechCount = 0;
@@ -8242,8 +8220,8 @@ return await createBackendApprovalRequest({
             }
 
             function loadTTSCfg() {
-                const voice = localStorage.getItem('gc_tts_voice') || '';
-                const autoplay = localStorage.getItem('gc_tts_autoplay') === '1';
+                const voice = storageSync.get('gc_tts_voice', '');
+                const autoplay = storageSync.get('gc_tts_autoplay') === '1';
                 const sel = document.getElementById('tts-voice-sel');
                 const ap = document.getElementById('tts-autoplay');
                 if (sel && voice) {
