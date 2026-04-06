@@ -21,6 +21,7 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="./account.js"></script>
+    <script src="./app/api-client.js"></script>
     <link rel="stylesheet" href="./mobile.css?v=2">
 
     <style>
@@ -3038,6 +3039,7 @@
                     tts_configured: false
                 }
             };
+            const apiClient = window.SkillFlowApi;
             const conversationApprovalGrants = new Map();
             let approvalItems = [];
             const GEMINI_THINKING_OPTIONS = [
@@ -3177,12 +3179,8 @@
 
             async function refreshRuntimeConfig() {
                 try {
-                    const res = await fetch('/api/runtime-config', {
-                        credentials: 'same-origin',
-                        cache: 'no-store'
-                    });
-                    const data = await res.json().catch(() => ({}));
-                    if (res.ok && data?.runtime) {
+                    const data = await apiClient.getRuntimeConfig();
+                    if (data?.runtime) {
                         runtimeConfig = data.runtime;
                     }
                 } catch (error) {
@@ -3196,16 +3194,7 @@
             async function saveProviderCredential(provider, rawValue) {
                 const value = String(rawValue || '').trim();
                 if (!value) return false;
-                const res = await fetch('/api/credentials', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ provider, value })
-                });
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok || !data?.ok) {
-                    throw new Error(data?.error || `Falha ao salvar credencial de ${provider}.`);
-                }
+                const data = await apiClient.saveProviderCredential(provider, value);
                 if (data.credentials) {
                     runtimeConfig = {
                         ...runtimeConfig,
@@ -3359,29 +3348,16 @@
 
             async function requestCodexChat({ model, reasoning, instructions, input, tools, signal }) {
                 const user = window.__skillflowAccount?.getUser?.();
-                const res = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        provider: 'codex',
-                        model,
-                        reasoning: normalizeCodexReasoning(reasoning),
-                        history_limit: CODEX_DEFAULT_HISTORY_LIMIT,
-                        instructions: instructions || undefined,
-                        input,
-                        tools,
-                        session_id: user?.id ? `${user.id}-skillflow` : 'skillflow'
-                    }),
-                    signal
-                });
-
-                let data = null;
-                try { data = await res.json(); } catch (_) { }
-
-                if (!res.ok || !data?.ok) {
-                    throw new Error(data?.error || `Codex falhou com HTTP ${res.status}`);
-                }
-                return data;
+                return apiClient.requestCodexChat({
+                    provider: 'codex',
+                    model,
+                    reasoning: normalizeCodexReasoning(reasoning),
+                    history_limit: CODEX_DEFAULT_HISTORY_LIMIT,
+                    instructions: instructions || undefined,
+                    input,
+                    tools,
+                    session_id: user?.id ? `${user.id}-skillflow` : 'skillflow'
+                }, signal);
             }
 
             function stringifyCodexToolOutput(result) {
@@ -3399,17 +3375,7 @@
             }
 
             async function fetchLocalJson(url, options) {
-                const res = await fetch(url, {
-                    credentials: 'same-origin',
-                    cache: 'no-store',
-                    ...options
-                });
-                const ct = res.headers.get('content-type') || '';
-                const data = ct.includes('application/json')
-                    ? await res.json().catch(() => ({}))
-                    : { error: await res.text().catch(() => '') };
-                if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-                return data;
+                return apiClient.fetchJson(url, options);
             }
 
             async function createBackendApprovalRequest(input) {
