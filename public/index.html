@@ -3226,6 +3226,22 @@
                 return data;
             }
 
+            async function createBackendApprovalRequest(input) {
+                const data = await fetchLocalJson('/api/approvals', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(input || {})
+                });
+                return data.item || null;
+            }
+
+            async function approveBackendApprovalRequest(id) {
+                const data = await fetchLocalJson('/api/approvals/' + encodeURIComponent(id) + '/approve', {
+                    method: 'POST'
+                });
+                return data.item || null;
+            }
+
             function summarizePlugin(plugin) {
                 return {
                     id: plugin.id,
@@ -3520,7 +3536,9 @@
                 async delete_registered_skill(args) {
                     const id = String(args.id || '').trim();
                     if (!id) return { error: 'id obrigatorio' };
-                    await fetchLocalJson('/api/skills/' + encodeURIComponent(id), { method: 'DELETE' });
+                    const approvalId = String(args.approval_id || '').trim();
+                    if (!approvalId) return { error: 'approval_id obrigatorio' };
+                    await fetchLocalJson('/api/skills/' + encodeURIComponent(id) + '?approval_id=' + encodeURIComponent(approvalId), { method: 'DELETE' });
                     await loadPlugins();
                     return { ok: true, id };
                 },
@@ -3623,7 +3641,8 @@
                             focus: { type: 'STRING', description: 'Foco opcional: web, academic, youtube, reddit, wolfram' },
                             time_range: { type: 'STRING', description: 'Janela opcional: all, day, week, month, year' },
                             citation_mode: { type: 'STRING', description: 'Modo de citaÃ§Ã£o opcional: markdown, default, clean' },
-                            user_id: { type: 'STRING', description: 'ID opcional do usuÃ¡rio ou conversa' }
+                            user_id: { type: 'STRING', description: 'ID opcional do usuÃ¡rio ou conversa' },
+                            approval_id: { type: 'STRING', description: 'Approval emitido pelo backend para autorizar a integracao externa' }
                         },
                         required: ['query']
                     },
@@ -3640,7 +3659,8 @@
                             focus: '{{focus}}',
                             time_range: '{{time_range}}',
                             citation_mode: '{{citation_mode}}',
-                            user_id: '{{user_id}}'
+                            user_id: '{{user_id}}',
+                            approval_id: '{{approval_id}}'
                         }
                     }
                 },
@@ -3748,14 +3768,15 @@
                     parameters: {
                         type: 'OBJECT',
                         properties: {
-                            path: { type: 'STRING', description: 'Caminho relativo do arquivo ou pasta a apagar' }
+                            path: { type: 'STRING', description: 'Caminho relativo do arquivo ou pasta a apagar' },
+                            approval_id: { type: 'STRING', description: 'Approval emitido pelo backend para autorizar a exclusao' }
                         },
-                        required: ['path']
+                        required: ['path', 'approval_id']
                     },
                     action: {
                         type: 'http',
                         method: 'DELETE',
-                        url: '/api/fs/delete?path={{path}}'
+                        url: '/api/fs/delete?path={{path}}&approval_id={{approval_id}}'
                     }
                 },
                 {
@@ -3808,24 +3829,18 @@ return { namespace: ns, entries: bag[ns] };`
                         properties: {
                             action: { type: 'STRING', description: 'AÃ§Ã£o que precisa de aprovaÃ§Ã£o' },
                             reason: { type: 'STRING', description: 'Justificativa e risco da aÃ§Ã£o' },
-                            risk: { type: 'STRING', description: 'NÃ­vel de risco, ex: baixo, mÃ©dio, alto' }
+                            risk: { type: 'STRING', description: 'NÃ­vel de risco, ex: baixo, mÃ©dio, alto' },
+                            payload: { type: 'OBJECT', description: 'Payload redigido da operacao sensivel', properties: {} }
                         },
                         required: ['action', 'reason']
                     },
                     code: `
-const approvals = JSON.parse(localStorage.getItem('gc_pending_approvals') || '[]');
-const item = {
-  id: 'appr_' + Date.now(),
+return await createBackendApprovalRequest({
   action: args.action,
   reason: args.reason,
-  risk: args.risk || 'mÃ©dio',
-  status: 'pending',
-  created_at: new Date().toISOString(),
-  conversation: convs[activeId]?.title || ''
-};
-approvals.unshift(item);
-                setStorageItem('gc_pending_approvals', JSON.stringify(approvals), { silent: true });
-return item;`
+  risk: args.risk || 'medio',
+  payload: args.payload || {}
+});`
                 },
                 {
                     id: 'wf_market', builtin: true, enabled: true, icon: 'ðŸ§©', name: 'list_skill_marketplace',
@@ -3866,9 +3881,10 @@ return item;`
                     parameters: {
                         type: 'OBJECT',
                         properties: {
-                            id: { type: 'STRING', description: 'ID da skill a apagar' }
+                            id: { type: 'STRING', description: 'ID da skill a apagar' },
+                            approval_id: { type: 'STRING', description: 'Approval emitido pelo backend para autorizar a exclusao' }
                         },
-                        required: ['id']
+                        required: ['id', 'approval_id']
                     }
                 },
                 {
@@ -3952,7 +3968,15 @@ return item;`
             }
 
             async function deleteCustomPluginOnServer(id) {
-                const res = await fetch('/api/skills/' + encodeURIComponent(id), { method: 'DELETE' });
+                const approval = await createBackendApprovalRequest({
+                    action: 'skill_delete',
+                    reason: `Excluir skill customizada ${id}`,
+                    risk: 'medio',
+                    payload: { id }
+                });
+                if (!approval?.id) throw new Error('Falha ao criar approval para deletar skill.');
+                await approveBackendApprovalRequest(approval.id);
+                const res = await fetch('/api/skills/' + encodeURIComponent(id) + '?approval_id=' + encodeURIComponent(approval.id), { method: 'DELETE' });
                 if (!res.ok) {
                     let msg = 'HTTP ' + res.status;
                     try { const err = await res.json(); msg = err.error || msg; } catch (_) { }
@@ -4070,7 +4094,8 @@ return item;`
                     cwd: resolveTemplateValue(action.cwd, actionArgs, true),
                     env: resolveTemplateValue(action.env, actionArgs, true),
                     stdin: resolveTemplateValue(action.stdin, actionArgs, true),
-                    timeout_ms: resolveTemplateValue(action.timeout_ms, actionArgs, true)
+                    timeout_ms: resolveTemplateValue(action.timeout_ms, actionArgs, true),
+                    approval_id: resolveTemplateValue(action.approval_id, actionArgs, true)
                 };
 
                 if (!payload.command || typeof payload.command !== 'string') {

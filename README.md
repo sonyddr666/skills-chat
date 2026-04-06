@@ -41,6 +41,14 @@ Servidor padrao:
 - `/api/state` sanitiza estado salvo e remove restos sensiveis de configuracao e chat jobs
 - `localStorage` segue focado em preferencias e estado de UI
 
+## Governanca da Fase 3
+
+- approvals reais no backend em `/api/approvals`
+- `exec`, deletes sensiveis e `ghost-search` exigem `approval_id` server-side
+- approval valida dono, status, acao e expiracao antes da execucao
+- approvals ficam auditaveis e sao consumidos quando usados
+- `exec` ganhou perfil de comando, auditoria, timeout por perfil e restricoes extras de policy
+
 ## Flags de Ambiente
 
 - `SKILLFLOW_EXEC_ENABLED=true`
@@ -77,6 +85,12 @@ Checks atuais:
 - validar isolamento entre prompts privados e compartilhados
 - `POST /api/exec` bloqueado por padrao
 - validar sessao entre requests e apos restart
+- validar approvals, delete com approval e bloqueio sem approval
+
+Smoke adicional com exec habilitado:
+
+- `SKILLFLOW_EXEC_ENABLED=true`
+- `SMOKE_ENABLE_EXEC_APPROVAL=1`
 
 Smokes externos continuam opt-in:
 

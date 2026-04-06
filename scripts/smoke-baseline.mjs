@@ -9,6 +9,8 @@ const TTS_SECRET = String(process.env.SMOKE_TTS_SECRET || "abelhadomato").trim()
 const USE_EXISTING_SERVER = ["1", "true", "yes", "on"].includes(String(process.env.SMOKE_USE_EXISTING_SERVER || "").trim().toLowerCase());
 const ENABLE_CHAT_SMOKE = ["1", "true", "yes", "on"].includes(String(process.env.SMOKE_ENABLE_CHAT || "").trim().toLowerCase());
 const ENABLE_TTS_SMOKE = ["1", "true", "yes", "on"].includes(String(process.env.SMOKE_ENABLE_TTS || "").trim().toLowerCase());
+const ENABLE_EXEC_APPROVAL_SMOKE = ["1", "true", "yes", "on"].includes(String(process.env.SMOKE_ENABLE_EXEC_APPROVAL || "").trim().toLowerCase());
+const EXEC_ENABLED_FOR_SMOKE = ["1", "true", "yes", "on"].includes(String(process.env.SKILLFLOW_EXEC_ENABLED || "").trim().toLowerCase());
 
 const results = [];
 let serverProcess = null;
@@ -48,6 +50,27 @@ function createCookieJar() {
 }
 
 async function fetchJson(path, options = {}, cookieJar = null) {
+  const headers = {
+    ...(options.headers || {})
+  };
+  if (cookieJar?.header()) headers.Cookie = cookieJar.header();
+
+  const response = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers
+  });
+
+  cookieJar?.setFromResponse(response);
+
+  const contentType = response.headers.get("content-type") || "";
+  const body = contentType.includes("application/json")
+    ? await response.json().catch(() => ({}))
+    : await response.text().catch(() => "");
+
+  return { response, body };
+}
+
+async function fetchJsonExpectingAnyStatus(path, options = {}, cookieJar = null) {
   const headers = {
     ...(options.headers || {})
   };
@@ -128,6 +151,26 @@ async function registerUser(login, password, cookieJar) {
   assert(response.ok, "register should return 200");
   assert(body?.user?.login === login, "register should return created user");
   assert(cookieJar.header().includes("sf_session="), "register should establish session cookie");
+}
+
+async function createApproval(cookieJar, payload) {
+  const { response, body } = await fetchJson("/api/approvals", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  }, cookieJar);
+  assert(response.status === 201, "approval create should return 201");
+  assert(body?.item?.id, "approval id is required");
+  return body.item;
+}
+
+async function approveApproval(cookieJar, approvalId) {
+  const { response, body } = await fetchJson(`/api/approvals/${encodeURIComponent(approvalId)}/approve`, {
+    method: "POST"
+  }, cookieJar);
+  assert(response.ok, "approval approve should return 200");
+  assert(body?.item?.status === "approved", "approval should move to approved");
+  return body.item;
 }
 
 async function runCoreSmoke() {
@@ -269,7 +312,7 @@ async function runCoreSmoke() {
   }
 
   {
-    const { response, body } = await fetchJson("/api/exec", {
+    const { response, body } = await fetchJsonExpectingAnyStatus("/api/exec", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -277,9 +320,79 @@ async function runCoreSmoke() {
         args: ["--version"]
       })
     }, cookieJar);
-    assert(response.status === 403, "exec should be disabled by default");
-    assert(body?.error === "Execucao desabilitada por politica do servidor", "exec policy error should be explicit");
-    mark("POST /api/exec desabilitado por padrao", "PASS");
+    assert(response.status === 403, "exec without approval/policy should return 403");
+    if (EXEC_ENABLED_FOR_SMOKE) {
+      assert(String(body?.error || "").includes("approval"), "exec enabled should require approval");
+      mark("POST /api/exec exige approval quando habilitado", "PASS");
+    } else {
+      assert(body?.error === "Execucao desabilitada por politica do servidor", "exec policy error should be explicit");
+      mark("POST /api/exec desabilitado por padrao", "PASS");
+    }
+  }
+
+  {
+    const pendingApproval = await createApproval(cookieJar, {
+      action: "fs_delete",
+      reason: "Smoke delete approval",
+      payload: { path: "smoke/delete-with-approval.txt" }
+    });
+    const approvalDetails = await fetchJson(`/api/approvals/${encodeURIComponent(pendingApproval.id)}`, {}, cookieJar);
+    assert(approvalDetails.response.ok, "approval get should return 200");
+    assert(approvalDetails.body?.item?.status === "pending", "approval should start pending");
+    await approveApproval(cookieJar, pendingApproval.id);
+    mark("approval lifecycle basico", "PASS", pendingApproval.id);
+  }
+
+  {
+    await fetchJson("/api/fs/write", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: "smoke/delete-no-approval.txt",
+        content: `delete-no-approval-${suffix}`,
+        create_dirs: true
+      })
+    }, cookieJar);
+    const { response, body } = await fetchJsonExpectingAnyStatus("/api/fs/delete?path=smoke%2Fdelete-no-approval.txt", {
+      method: "DELETE"
+    }, cookieJar);
+    assert(response.status === 403, "delete without approval should return 403");
+    assert(String(body?.error || "").includes("approval"), "delete without approval should mention approval");
+    mark("delete sem approval bloqueado", "PASS");
+  }
+
+  {
+    await fetchJson("/api/fs/write", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: "smoke/delete-with-approval.txt",
+        content: `delete-with-approval-${suffix}`,
+        create_dirs: true
+      })
+    }, cookieJar);
+    const approval = await createApproval(cookieJar, {
+      action: "fs_delete",
+      reason: "Smoke delete with approval",
+      payload: { path: "smoke/delete-with-approval.txt" }
+    });
+    await approveApproval(cookieJar, approval.id);
+    const deleted = await fetchJson(`/api/fs/delete?path=smoke%2Fdelete-with-approval.txt&approval_id=${encodeURIComponent(approval.id)}`, {
+      method: "DELETE"
+    }, cookieJar);
+    assert(deleted.response.ok, "delete with approval should return 200");
+    mark("delete com approval aprovado", "PASS");
+  }
+
+  {
+    const { response, body } = await fetchJsonExpectingAnyStatus("/api/ghost-search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "smoke test" })
+    }, cookieJar);
+    assert(response.status === 403, "ghost-search without approval should return 403");
+    assert(String(body?.error || "").includes("approval"), "ghost-search without approval should mention approval");
+    mark("integracao externa sem approval bloqueada", "PASS");
   }
 }
 
@@ -367,6 +480,55 @@ async function runOptionalTtsSmoke() {
   mark("rodar TTS", "PASS", `${TTS_API}/health + /vozes`);
 }
 
+async function runOptionalExecApprovalSmoke() {
+  if (!ENABLE_EXEC_APPROVAL_SMOKE) {
+    mark("exec com approval server-side", "SKIP", "defina SMOKE_ENABLE_EXEC_APPROVAL=1 para rodar com exec habilitado");
+    return;
+  }
+
+  const cookieJar = createCookieJar();
+  const suffix = `${Date.now()}`;
+  const login = `smoke_exec_${suffix}`;
+  const password = "1234";
+  await registerUser(login, password, cookieJar);
+
+  const approval = await createApproval(cookieJar, {
+    action: "exec",
+    reason: "Smoke exec approval",
+    payload: {
+      command: "node",
+      args: ["--version"],
+      cwd: ""
+    }
+  });
+  await approveApproval(cookieJar, approval.id);
+
+  const created = await fetchJson("/api/exec", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      command: "node",
+      args: ["--version"],
+      approval_id: approval.id
+    })
+  }, cookieJar);
+  assert(created.response.status === 202, "exec with approval should queue");
+  const runId = created.body?.run?.id;
+  assert(runId, "exec run id is required");
+
+  const startedAt = Date.now();
+  let run = null;
+  while (Date.now() - startedAt < 30000) {
+    const status = await fetchJson(`/api/exec/${encodeURIComponent(runId)}`, {}, cookieJar);
+    run = status.body?.run || null;
+    if (run?.status && run.status !== "running") break;
+    await delay(400);
+  }
+
+  assert(run?.status === "completed", `exec run should complete, got ${run?.status || "unknown"}`);
+  mark("exec com approval server-side", "PASS", runId);
+}
+
 async function main() {
   try {
     if (!USE_EXISTING_SERVER) {
@@ -379,6 +541,7 @@ async function main() {
     await runCoreSmoke();
     await runOptionalChatSmoke();
     await runOptionalTtsSmoke();
+    await runOptionalExecApprovalSmoke();
 
     const failed = results.filter((item) => item.status === "FAIL");
     const skipped = results.filter((item) => item.status === "SKIP");

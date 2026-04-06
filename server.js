@@ -18,6 +18,7 @@ const usersFile = join(systemDir, "users.json");
 const userStateDir = join(systemDir, "state");
 const systemPromptsDir = join(systemDir, "system-prompts");
 const credentialsDir = join(systemDir, "credentials");
+const approvalsDir = join(systemDir, "approvals");
 const sharedSystemPromptsDir = join(systemPromptsDir, "_shared");
 const sessionsFile = join(systemDir, "sessions.json");
 let sessionStoreCache = null;
@@ -36,10 +37,13 @@ const DEFAULT_REQUEST_BODY_LIMIT_BYTES = 10 * 1024 * 1024;
 const DEFAULT_FS_READ_MAX_BYTES = 64 * 1024;
 const MAX_FS_READ_MAX_BYTES = 512 * 1024;
 const EXECUTION_STATE_KEY = "sf_exec";
+const APPROVAL_STATE_KEY = "sf_approvals";
 const DEFAULT_EXEC_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_EXEC_TIMEOUT_MS = 60 * 60 * 1000;
 const MAX_EXEC_HISTORY_ITEMS = 100;
 const MAX_EXEC_LOG_TAIL_BYTES = 64 * 1024;
+const DEFAULT_APPROVAL_TTL_MS = 30 * 60 * 1000;
+const MAX_APPROVAL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const EXEC_ENABLED = ["1", "true", "yes", "on"].includes(String(process.env.SKILLFLOW_EXEC_ENABLED || "").trim().toLowerCase());
 const CLIENT_CODE_PLUGINS_ENABLED = ["1", "true", "yes", "on"].includes(String(process.env.SKILLFLOW_ENABLE_CLIENT_CODE_PLUGINS || "").trim().toLowerCase());
 const LIVE_CLIENT_ENABLED = ["1", "true", "yes", "on"].includes(String(process.env.SKILLFLOW_ENABLE_LIVE_CLIENT || "").trim().toLowerCase());
@@ -284,6 +288,7 @@ async function ensureBaseDirs() {
   await mkdir(systemPromptsDir, { recursive: true });
   await mkdir(sharedSystemPromptsDir, { recursive: true });
   await mkdir(credentialsDir, { recursive: true });
+  await mkdir(approvalsDir, { recursive: true });
   if (!existsSync(usersFile)) {
     await writeFile(usersFile, "[]\n", "utf8");
   }
@@ -330,6 +335,10 @@ function userCredentialsFile(user) {
   return join(credentialsDir, `${user.id}.json`);
 }
 
+function userApprovalsFile(user) {
+  return join(approvalsDir, `${user.id}.json`);
+}
+
 function userSystemPromptsDir(user) {
   return join(systemPromptsDir, user.id);
 }
@@ -358,6 +367,9 @@ async function ensureUserDirs(user) {
   }
   if (!existsSync(userCredentialsFile(user))) {
     await writeFile(userCredentialsFile(user), "{}\n", "utf8");
+  }
+  if (!existsSync(userApprovalsFile(user))) {
+    await writeFile(userApprovalsFile(user), "[]\n", "utf8");
   }
 }
 
@@ -697,6 +709,254 @@ function sanitizeUserState(state) {
   return next;
 }
 
+function buildApprovalStateSummary(item) {
+  return {
+    id: item.id,
+    action: item.action,
+    status: item.status,
+    created_at: item.created_at,
+    expires_at: item.expires_at,
+    updated_at: item.updated_at
+  };
+}
+
+async function persistApprovalSummary(user, approval) {
+  const state = await loadUserState(user);
+  const current = state[APPROVAL_STATE_KEY] && typeof state[APPROVAL_STATE_KEY] === "object"
+    ? state[APPROVAL_STATE_KEY]
+    : {};
+  const recent = Array.isArray(current.recent)
+    ? current.recent.filter((item) => item && item.id !== approval.id)
+    : [];
+  recent.unshift(buildApprovalStateSummary(approval));
+  state[APPROVAL_STATE_KEY] = {
+    updated_at: new Date().toISOString(),
+    recent: recent.slice(0, 100)
+  };
+  await saveUserState(user, state);
+}
+
+async function loadApprovals(user) {
+  await ensureUserDirs(user);
+  try {
+    const parsed = JSON.parse(await readFile(userApprovalsFile(user), "utf8"));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveApprovals(user, approvals) {
+  await ensureUserDirs(user);
+  const safeApprovals = Array.isArray(approvals) ? approvals : [];
+  await writeFile(userApprovalsFile(user), `${JSON.stringify(safeApprovals, null, 2)}\n`, "utf8");
+}
+
+function inferExecProfile(payload) {
+  const commandName = normalizeExecCommandName(payload.command);
+  if (payload.shell) return "shell";
+  if (["npm", "npx"].includes(commandName)) return "package_manager";
+  if (["node", "python", "python3", "py", "deno", "bash", "sh"].includes(commandName)) return "runtime";
+  return "generic";
+}
+
+function execProfilePolicy(profile) {
+  switch (profile) {
+    case "shell":
+      return { maxTimeoutMs: 5 * 60 * 1000, maxEnvKeys: 12, allowShell: true };
+    case "package_manager":
+      return { maxTimeoutMs: 20 * 60 * 1000, maxEnvKeys: 16, allowShell: false };
+    case "runtime":
+      return { maxTimeoutMs: 30 * 60 * 1000, maxEnvKeys: 16, allowShell: false };
+    default:
+      return { maxTimeoutMs: 10 * 60 * 1000, maxEnvKeys: 8, allowShell: false };
+  }
+}
+
+function redactApprovalPayload(action, payload) {
+  const safeAction = normalizeApprovalAction(action);
+  const source = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+  if (safeAction === "exec") {
+    const execPayload = normalizeExecPayload(source);
+    return {
+      title: execPayload.title,
+      command: execPayload.command,
+      args: execPayload.args,
+      shell: execPayload.shell,
+      cwd: execPayload.cwd || ".",
+      timeout_ms: execPayload.timeoutMs,
+      env_keys: Object.keys(execPayload.env),
+      stdin_bytes: Buffer.byteLength(execPayload.stdin || "", "utf8"),
+      profile: inferExecProfile(execPayload)
+    };
+  }
+  if (safeAction === "fs_delete" || safeAction === "skill_delete" || safeAction === "system_prompt_delete") {
+    return {
+      path: source.path ? normalizeRelativePath(source.path) : undefined,
+      id: source.id ? sanitizeId(source.id) : undefined,
+      scope: source.scope ? normalizeSystemPromptScope(source.scope) : undefined
+    };
+  }
+  if (safeAction === "ghost_search") {
+    return {
+      query: String(source.query || "").trim().slice(0, 500),
+      focus: String(source.focus || "").trim().slice(0, 40),
+      model: String(source.model || "").trim().slice(0, 80),
+      time_range: String(source.time_range || "").trim().slice(0, 40)
+    };
+  }
+  return JSON.parse(JSON.stringify(source || {}));
+}
+
+function normalizeApprovalPayload(input, user) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("Payload de approval invalido");
+  }
+  const action = normalizeApprovalAction(input.action);
+  if (!action) throw new Error("action ausente");
+  const reason = String(input.reason || "").trim();
+  if (!reason) throw new Error("reason ausente");
+  const risk = String(input.risk || "medio").trim().toLowerCase().slice(0, 40) || "medio";
+  const redactedPayload = redactApprovalPayload(action, input.payload);
+  const now = Date.now();
+  const ttlMs = clampApprovalTtlMs(input.expires_in_ms ?? input.ttl_ms);
+  const createdAt = new Date(now).toISOString();
+  return {
+    id: generateApprovalId(),
+    action,
+    reason,
+    risk,
+    status: "pending",
+    requested_by_user_id: user.id,
+    requested_by_login: user.login,
+    payload_redacted: redactedPayload,
+    created_at: createdAt,
+    updated_at: createdAt,
+    expires_at: new Date(now + ttlMs).toISOString(),
+    audit: [
+      {
+        at: createdAt,
+        actor_user_id: user.id,
+        actor_login: user.login,
+        event: "created"
+      }
+    ]
+  };
+}
+
+function touchApprovalExpiration(item, user) {
+  if (!item || typeof item !== "object") return item;
+  if (!item.expires_at || item.status === "expired") return item;
+  if (Date.parse(item.expires_at) > Date.now()) return item;
+  return {
+    ...item,
+    status: "expired",
+    updated_at: new Date().toISOString(),
+    audit: [
+      ...(Array.isArray(item.audit) ? item.audit : []),
+      {
+        at: new Date().toISOString(),
+        actor_user_id: user.id,
+        actor_login: user.login,
+        event: "expired"
+      }
+    ]
+  };
+}
+
+async function findApproval(user, approvalId) {
+  const approvals = await loadApprovals(user);
+  const nextApprovals = approvals.map((item) => touchApprovalExpiration(item, user));
+  const changed = JSON.stringify(nextApprovals) !== JSON.stringify(approvals);
+  if (changed) await saveApprovals(user, nextApprovals);
+  const approval = nextApprovals.find((item) => item.id === approvalId) || null;
+  return { approval, approvals: nextApprovals };
+}
+
+async function upsertApproval(user, approval) {
+  const approvals = await loadApprovals(user);
+  const next = [approval, ...approvals.filter((item) => item && item.id !== approval.id)];
+  await saveApprovals(user, next);
+  await persistApprovalSummary(user, approval);
+  return approval;
+}
+
+function serializeApproval(approval) {
+  if (!approval) return null;
+  return {
+    id: approval.id,
+    action: approval.action,
+    reason: approval.reason,
+    risk: approval.risk,
+    status: approval.status,
+    requested_by_user_id: approval.requested_by_user_id,
+    requested_by_login: approval.requested_by_login,
+    payload_redacted: approval.payload_redacted,
+    created_at: approval.created_at,
+    updated_at: approval.updated_at,
+    expires_at: approval.expires_at,
+    decided_at: approval.decided_at || null,
+    decided_by_user_id: approval.decided_by_user_id || null,
+    decided_by_login: approval.decided_by_login || null,
+    consumed_at: approval.consumed_at || null,
+    consumed_by: approval.consumed_by || null,
+    audit: Array.isArray(approval.audit) ? approval.audit : []
+  };
+}
+
+async function requireApprovedAction(user, approvalId, expectedAction, consumeMeta = null) {
+  const normalizedAction = normalizeApprovalAction(expectedAction);
+  const id = String(approvalId || "").trim();
+  if (!id) {
+    const error = new Error("approval_id ausente");
+    error.statusCode = 403;
+    throw error;
+  }
+  const { approval, approvals } = await findApproval(user, id);
+  if (!approval) {
+    const error = new Error("approval nao encontrado");
+    error.statusCode = 403;
+    throw error;
+  }
+  if (approval.requested_by_user_id !== user.id) {
+    const error = new Error("approval nao pertence ao usuario autenticado");
+    error.statusCode = 403;
+    throw error;
+  }
+  if (approval.action !== normalizedAction) {
+    const error = new Error(`approval invalido para a acao ${normalizedAction}`);
+    error.statusCode = 403;
+    throw error;
+  }
+  if (approval.status !== "approved") {
+    const error = new Error(`approval com status invalido: ${approval.status}`);
+    error.statusCode = 403;
+    throw error;
+  }
+  const consumedAt = new Date().toISOString();
+  const updated = {
+    ...approval,
+    status: "consumed",
+    consumed_at: consumedAt,
+    consumed_by: consumeMeta || null,
+    updated_at: consumedAt,
+    audit: [
+      ...(Array.isArray(approval.audit) ? approval.audit : []),
+      {
+        at: consumedAt,
+        actor_user_id: user.id,
+        actor_login: user.login,
+        event: "consumed",
+        meta: consumeMeta || null
+      }
+    ]
+  };
+  const next = approvals.map((item) => (item.id === updated.id ? updated : item));
+  await saveApprovals(user, next);
+  await persistApprovalSummary(user, updated);
+  return updated;
+}
+
 async function loadUserState(user) {
   await ensureUserDirs(user);
   try {
@@ -974,6 +1234,10 @@ function clampFsReadMaxBytes(value) {
   return clampInteger(value, DEFAULT_FS_READ_MAX_BYTES, 256, MAX_FS_READ_MAX_BYTES);
 }
 
+function clampApprovalTtlMs(value) {
+  return clampInteger(value, DEFAULT_APPROVAL_TTL_MS, 60 * 1000, MAX_APPROVAL_TTL_MS);
+}
+
 function parseOptionalBoolean(value, fallback) {
   if (value === undefined || value === null || value === "") return fallback;
   if (typeof value === "boolean") return value;
@@ -981,6 +1245,19 @@ function parseOptionalBoolean(value, fallback) {
   if (["1", "true", "yes", "on"].includes(normalized)) return true;
   if (["0", "false", "no", "off"].includes(normalized)) return false;
   return fallback;
+}
+
+function normalizeApprovalAction(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9:_-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 120);
+}
+
+function generateApprovalId() {
+  return `appr_${Date.now().toString(36)}_${randomBytes(5).toString("hex")}`;
 }
 
 function normalizeExecEnv(input) {
@@ -1041,6 +1318,8 @@ function normalizeExecCommandName(command) {
 
 function validateExecPolicy(payload) {
   const commandName = normalizeExecCommandName(payload.command);
+  const profile = inferExecProfile(payload);
+  const profilePolicy = execProfilePolicy(profile);
   if (!commandName) {
     const error = new Error("command is required");
     error.statusCode = 400;
@@ -1055,6 +1334,36 @@ function validateExecPolicy(payload) {
 
   if (payload.shell && !EXEC_ALLOW_SHELL) {
     const error = new Error("Execucao com shell=true esta desabilitada por politica");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (payload.shell && !profilePolicy.allowShell) {
+    const error = new Error("Perfil de execucao nao permite shell=true");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (payload.timeoutMs > profilePolicy.maxTimeoutMs) {
+    const error = new Error(`timeout_ms excede o perfil ${profile}`);
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (Object.keys(payload.env || {}).length > profilePolicy.maxEnvKeys) {
+    const error = new Error(`env excede o limite do perfil ${profile}`);
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (Buffer.byteLength(payload.stdin || "", "utf8") > 64 * 1024) {
+    const error = new Error("stdin excede o limite de 64KB");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if ((payload.cwd || "").startsWith(".runs") || (payload.cwd || "").startsWith(".chat-jobs")) {
+    const error = new Error("cwd bloqueado por politica");
     error.statusCode = 403;
     throw error;
   }
@@ -1076,6 +1385,12 @@ function validateExecPolicy(payload) {
       }
     }
   }
+
+  return {
+    commandName,
+    profile,
+    profilePolicy
+  };
 }
 
 function buildExecutionRequestSnapshot(payload, cwd) {
@@ -1087,7 +1402,9 @@ function buildExecutionRequestSnapshot(payload, cwd) {
     cwd: cwd || ".",
     timeout_ms: payload.timeoutMs,
     stdin_bytes: Buffer.byteLength(payload.stdin || "", "utf8"),
-    env_keys: Object.keys(payload.env)
+    env_keys: Object.keys(payload.env),
+    approval_id: payload.approvalId || null,
+    profile: payload.profile || inferExecProfile(payload)
   };
 }
 
@@ -1102,6 +1419,8 @@ function buildExecutionMeta(payload, runId, cwd) {
     cwd: cwd || ".",
     timeout_ms: payload.timeoutMs,
     env_keys: Object.keys(payload.env),
+    profile: payload.profile || inferExecProfile(payload),
+    approval_id: payload.approvalId || null,
     request_path: executionRelativePath(runId, "request.json"),
     result_path: executionRelativePath(runId, "result.json"),
     stdout_path: executionRelativePath(runId, "stdout.log"),
@@ -1112,7 +1431,8 @@ function buildExecutionMeta(payload, runId, cwd) {
     error: null,
     started_at: new Date().toISOString(),
     finished_at: null,
-    duration_ms: null
+    duration_ms: null,
+    audit: []
   };
 }
 
@@ -1122,6 +1442,7 @@ function buildExecutionSummary(meta) {
     title: meta.title,
     status: meta.status,
     command: meta.command,
+    profile: meta.profile,
     cwd: meta.cwd,
     started_at: meta.started_at,
     finished_at: meta.finished_at,
@@ -1232,19 +1553,46 @@ async function listExecutionHistory(user, limit) {
 
 async function createExecution(user, input) {
   const payload = normalizeExecPayload(input);
-  validateExecPolicy(payload);
+  const policy = validateExecPolicy(payload);
   const workdir = workspacePath(user, payload.cwd);
+  const approval = await requireApprovedAction(
+    user,
+    input?.approval_id,
+    "exec",
+    {
+      route: "/api/exec",
+      command: payload.command,
+      cwd: workdir.rel || ".",
+      profile: policy.profile
+    }
+  );
   const runId = generateRunId();
   const paths = executionPaths(user, runId);
+
+  const execPayload = {
+    ...payload,
+    approvalId: approval.id,
+    profile: policy.profile
+  };
 
   await mkdir(paths.dir, { recursive: true });
   await writeFile(
     paths.request,
-    `${JSON.stringify(buildExecutionRequestSnapshot(payload, workdir.rel || "."), null, 2)}\n`,
+    `${JSON.stringify(buildExecutionRequestSnapshot(execPayload, workdir.rel || "."), null, 2)}\n`,
     "utf8"
   );
 
-  let meta = buildExecutionMeta(payload, runId, workdir.rel || ".");
+  let meta = buildExecutionMeta(execPayload, runId, workdir.rel || ".");
+  meta.audit = [
+    {
+      at: meta.started_at,
+      actor_user_id: user.id,
+      actor_login: user.login,
+      event: "created",
+      approval_id: approval.id,
+      profile: policy.profile
+    }
+  ];
   await persistExecutionMeta(user, meta);
 
   const stdoutStream = createWriteStream(paths.stdout, { flags: "a" });
@@ -2278,6 +2626,11 @@ async function handleGhostSearch(req, res, user) {
 
   try {
     const payload = await parseJsonBody(req);
+    await requireApprovedAction(user, payload.approval_id, "ghost_search", {
+      route: "/api/ghost-search",
+      query: String(payload.query || "").trim().slice(0, 120)
+    });
+    delete payload.approval_id;
     if (!payload.user_id) payload.user_id = user.id;
 
     const upstream = await fetch("https://api.ghost1.cloud/search", {
@@ -2293,7 +2646,9 @@ async function handleGhostSearch(req, res, user) {
     });
     res.end(text);
   } catch (error) {
-    sendJson(res, 500, { error: `ghost-search proxy failed: ${error.message}` });
+    sendJson(res, error.statusCode || 500, {
+      error: error.statusCode ? error.message : `ghost-search proxy failed: ${error.message}`
+    });
   }
 }
 
@@ -2332,6 +2687,10 @@ async function handleSkillsApi(req, res, url, user) {
       sendJson(res, 404, { error: "Skill not found" });
       return;
     }
+    await requireApprovedAction(user, url.searchParams.get("approval_id"), "skill_delete", {
+      route: "/api/skills/:id",
+      id
+    });
     await unlink(filePath);
     sendJson(res, 200, { ok: true, id });
     return;
@@ -2391,6 +2750,11 @@ async function handleSystemPromptsApi(req, res, url, user) {
       return;
     }
     assertSystemPromptPermission(user, existingRecord.item);
+    await requireApprovedAction(user, url.searchParams.get("approval_id"), "system_prompt_delete", {
+      route: "/api/system-prompts/:scope/:id",
+      id,
+      scope
+    });
     await unlink(existingRecord.filePath);
     sendJson(res, 200, { ok: true, id, scope });
     return;
@@ -2552,6 +2916,11 @@ async function handleFsApi(req, res, url, user) {
       return;
     }
     const { rel, absolute } = workspacePath(user, requestedPath);
+    await lstat(absolute);
+    await requireApprovedAction(user, url.searchParams.get("approval_id"), "fs_delete", {
+      route: "/api/fs/delete",
+      path: requestedPath
+    });
     await rm(absolute, { recursive: true, force: false });
     sendJson(res, 200, { ok: true, path: rel });
     return;
@@ -2596,6 +2965,81 @@ async function handleCredentialsApi(req, res, user) {
       ok: true,
       credentials: credentialStatusPayload(next)
     });
+    return;
+  }
+
+  sendJson(res, 405, { error: "Method not allowed" });
+}
+
+async function handleApprovalsApi(req, res, url, user) {
+  if (req.method === "GET" && url.pathname === "/api/approvals") {
+    const approvals = await loadApprovals(user);
+    sendJson(res, 200, {
+      ok: true,
+      items: approvals.map(serializeApproval)
+    });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/approvals") {
+    const payload = await parseJsonBody(req);
+    const approval = normalizeApprovalPayload(payload, user);
+    await upsertApproval(user, approval);
+    sendJson(res, 201, { ok: true, item: serializeApproval(approval) });
+    return;
+  }
+
+  if (!url.pathname.startsWith("/api/approvals/")) {
+    sendJson(res, 404, { error: "Not found" });
+    return;
+  }
+
+  const parts = url.pathname.slice("/api/approvals/".length).split("/").filter(Boolean);
+  const approvalId = String(parts[0] || "").trim();
+  if (!approvalId) {
+    sendJson(res, 400, { error: "approval id ausente" });
+    return;
+  }
+
+  const { approval, approvals } = await findApproval(user, approvalId);
+  if (!approval) {
+    sendJson(res, 404, { error: "approval nao encontrado" });
+    return;
+  }
+
+  if (parts.length === 1 && req.method === "GET") {
+    sendJson(res, 200, { ok: true, item: serializeApproval(approval) });
+    return;
+  }
+
+  const action = parts[1] || "";
+  if (req.method === "POST" && (action === "approve" || action === "reject")) {
+    if (approval.status !== "pending") {
+      sendJson(res, 409, { error: `approval nao pode mudar de status: ${approval.status}` });
+      return;
+    }
+    const now = new Date().toISOString();
+    const nextStatus = action === "approve" ? "approved" : "rejected";
+    const next = {
+      ...approval,
+      status: nextStatus,
+      decided_at: now,
+      decided_by_user_id: user.id,
+      decided_by_login: user.login,
+      updated_at: now,
+      audit: [
+        ...(Array.isArray(approval.audit) ? approval.audit : []),
+        {
+          at: now,
+          actor_user_id: user.id,
+          actor_login: user.login,
+          event: nextStatus
+        }
+      ]
+    };
+    await saveApprovals(user, approvals.map((item) => (item.id === next.id ? next : item)));
+    await persistApprovalSummary(user, next);
+    sendJson(res, 200, { ok: true, item: serializeApproval(next) });
     return;
   }
 
@@ -2904,6 +3348,10 @@ const server = createServer(async (req, res) => {
       }
       if (url.pathname === "/api/credentials") {
         await handleCredentialsApi(req, res, authUser);
+        return;
+      }
+      if (url.pathname === "/api/approvals" || url.pathname.startsWith("/api/approvals/")) {
+        await handleApprovalsApi(req, res, url, authUser);
         return;
       }
       if (url.pathname.startsWith("/api/tts/")) {
