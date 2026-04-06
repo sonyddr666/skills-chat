@@ -1,37 +1,39 @@
 # Fase 5 em diante - Backlog Executavel
 
-Atualizado a partir do estado validado no commit `f1ee618`.
+Atualizado para refletir o estado real apos a modularizacao de backend e o avanço forte da modularizacao de frontend.
 
 ## Estado Atual
 
 - `5.1A` backend infra: concluida
-- [server/http/utils.js](E:\CODEX-testing\chat\skillflow-chat\server\http\utils.js): concluido
-- [server/auth/session.js](E:\CODEX-testing\chat\skillflow-chat\server\auth\session.js): concluido
-- [server/state/index.js](E:\CODEX-testing\chat\skillflow-chat\server\state\index.js): concluido
-- [server/filesystem/index.js](E:\CODEX-testing\chat\skillflow-chat\server\filesystem\index.js): concluido
+- `5.1B` governanca backend: concluida
+- `5.1C` chat backend: concluida
+- `5.2A` base frontend + api-client: concluida
+- `5.2B` storage-sync: concluida
+- `5.2C` tts: concluida
+- `5.2D` jobs/chat/live/ui-render: muito avancada, mas ainda nao 100% encerrada
 - smoke baseline: verde
 
 ## Quadro Atual
 
 | ID | Status | Prioridade | Esforco | Tempo |
 |---|---|---|---|---|
-| `5.1A-F-01` | todo | alta | baixo a medio | 0,5 a 1 dia |
-| `5.1B-01` | todo | alta | medio | 1 dia |
-| `5.1B-02` | todo | alta | medio | 1 a 1,5 dia |
-| `5.1B-03` | todo | muito alta | medio | 1,5 a 2 dias |
-| `5.1C-01` | todo | alta | medio | 1 a 1,5 dia |
-| `5.1C-02` | todo | alta | medio | 1 a 1,5 dia |
-| `5.1C-03` | todo | alta | medio | 1,5 a 2 dias |
-| `5.1C-04` | todo | alta | baixo | 0,5 dia |
-| `5.2A-01` | todo | media alta | baixo | 0,5 dia |
-| `5.2A-02` | todo | alta | medio | 1 dia |
-| `5.2B-01` | todo | alta | medio | 1 a 1,5 dia |
-| `5.2B-02` | todo | media | baixo | 0,5 dia |
-| `5.2C-01` | todo | media alta | medio | 1 dia |
-| `5.2D-01` | todo | alta | medio | 1 a 1,5 dia |
-| `5.2D-02` | todo | alta | alto | 1,5 a 2,5 dias |
-| `5.2D-03` | todo | media | medio | 1 dia |
-| `5.2D-04` | todo | media alta | alto | 2 a 3 dias |
+| `5.1A-F-01` | concluido | alta | baixo a medio | 0,5 a 1 dia |
+| `5.1B-01` | concluido | alta | medio | 1 dia |
+| `5.1B-02` | concluido | alta | medio | 1 a 1,5 dia |
+| `5.1B-03` | concluido | muito alta | medio | 1,5 a 2 dias |
+| `5.1C-01` | concluido | alta | medio | 1 a 1,5 dia |
+| `5.1C-02` | concluido | alta | medio | 1 a 1,5 dia |
+| `5.1C-03` | concluido | alta | medio | 1,5 a 2 dias |
+| `5.1C-04` | concluido | alta | baixo | 0,5 dia |
+| `5.2A-01` | concluido | media alta | baixo | 0,5 dia |
+| `5.2A-02` | concluido | alta | medio | 1 dia |
+| `5.2B-01` | concluido | alta | medio | 1 a 1,5 dia |
+| `5.2B-02` | concluido | media | baixo | 0,5 dia |
+| `5.2C-01` | concluido | media alta | medio | 1 dia |
+| `5.2D-01` | concluido | alta | medio | 1 a 1,5 dia |
+| `5.2D-02` | muito avancado | alta | alto | 1,5 a 2,5 dias |
+| `5.2D-03` | muito avancado | media | medio | 1 dia |
+| `5.2D-04` | muito avancado | media alta | alto | 2 a 3 dias |
 | `6.1-01` | todo | alta | baixo a medio | 0,5 a 1 dia |
 | `6.2-01` | todo | muito alta | medio a alto | 2 a 3 dias |
 | `7.1-01` | todo | alta | medio | 1 dia |
