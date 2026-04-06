@@ -6,6 +6,7 @@ import { createReadStream, createWriteStream, existsSync } from "node:fs";
 import { dirname, extname, join, normalize, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createAuthSession } from "./server/auth/session.js";
+import { createApprovalsModule } from "./server/approvals/index.js";
 import { createFilesystemModule } from "./server/filesystem/index.js";
 import { createHttpUtils } from "./server/http/utils.js";
 import { createStateModule } from "./server/state/index.js";
@@ -143,6 +144,10 @@ let fsWorkspacePath;
 
 let systemPromptsHandleApi;
 let systemPromptsNormalizeScope;
+
+let approvalsHandleApi;
+let approvalsNormalizeAction;
+let approvalsRequireApprovedAction;
 
 function normalizeLogin(value) {
   return String(value || "").trim().toLowerCase();
@@ -614,7 +619,7 @@ function sanitizeUserState(state) {
   legacySystemPromptFilePath,
   sendJson,
   parseJsonBody,
-  requireApprovedAction
+  requireApprovedAction: (...args) => approvalsRequireApprovedAction(...args)
 }));
 
 function buildApprovalStateSummary(item) {
@@ -644,7 +649,7 @@ async function persistApprovalSummary(user, approval) {
   await stateSaveUserState(user, state);
 }
 
-async function loadApprovals(user) {
+async function legacyLoadApprovals(user) {
   await ensureUserDirs(user);
   try {
     const parsed = JSON.parse(await readFile(userApprovalsFile(user), "utf8"));
@@ -654,7 +659,7 @@ async function loadApprovals(user) {
   }
 }
 
-async function saveApprovals(user, approvals) {
+async function legacySaveApprovals(user, approvals) {
   await ensureUserDirs(user);
   const safeApprovals = Array.isArray(approvals) ? approvals : [];
   await writeFile(userApprovalsFile(user), `${JSON.stringify(safeApprovals, null, 2)}\n`, "utf8");
@@ -682,7 +687,7 @@ function execProfilePolicy(profile) {
 }
 
 function redactApprovalPayload(action, payload) {
-  const safeAction = normalizeApprovalAction(action);
+  const safeAction = approvalsNormalizeAction(action);
   const source = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
   if (safeAction === "exec") {
     const execPayload = normalizeExecPayload(source);
@@ -716,14 +721,14 @@ function redactApprovalPayload(action, payload) {
   return JSON.parse(JSON.stringify(source || {}));
 }
 
-function normalizeApprovalPayload(input, user) {
+function legacyNormalizeApprovalPayload(input, user) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new Error("Payload de approval invalido");
   }
   const kind = String(input.kind || "single_action").trim().toLowerCase() === "conversation_grant"
     ? "conversation_grant"
     : "single_action";
-  const action = normalizeApprovalAction(input.action);
+  const action = approvalsNormalizeAction(input.action);
   if (!action) throw new Error("action ausente");
   const reason = String(input.reason || "").trim();
   if (!reason) throw new Error("reason ausente");
@@ -732,7 +737,7 @@ function normalizeApprovalPayload(input, user) {
   const conversationId = normalizeConversationId(input.conversation_id);
   const allowedActions = kind === "conversation_grant"
     ? (Array.isArray(input.allowed_actions) ? input.allowed_actions : ["*"])
-      .map((value) => normalizeApprovalAction(value))
+      .map((value) => approvalsNormalizeAction(value))
       .filter(Boolean)
     : [action];
   if (kind === "conversation_grant" && !conversationId) {
@@ -788,24 +793,24 @@ function touchApprovalExpiration(item, user) {
   };
 }
 
-async function findApproval(user, approvalId) {
-  const approvals = await loadApprovals(user);
+async function legacyFindApproval(user, approvalId) {
+  const approvals = await legacyLoadApprovals(user);
   const nextApprovals = approvals.map((item) => touchApprovalExpiration(item, user));
   const changed = JSON.stringify(nextApprovals) !== JSON.stringify(approvals);
-  if (changed) await saveApprovals(user, nextApprovals);
+  if (changed) await legacySaveApprovals(user, nextApprovals);
   const approval = nextApprovals.find((item) => item.id === approvalId) || null;
   return { approval, approvals: nextApprovals };
 }
 
-async function upsertApproval(user, approval) {
-  const approvals = await loadApprovals(user);
+async function legacyUpsertApproval(user, approval) {
+  const approvals = await legacyLoadApprovals(user);
   const next = [approval, ...approvals.filter((item) => item && item.id !== approval.id)];
-  await saveApprovals(user, next);
+  await legacySaveApprovals(user, next);
   await persistApprovalSummary(user, approval);
   return approval;
 }
 
-function approvalAllowsAction(approval, action, conversationId) {
+function legacyApprovalAllowsAction(approval, action, conversationId) {
   if (!approval || approval.kind !== "conversation_grant") return false;
   if (approval.status !== "approved") return false;
   if (approval.conversation_id !== conversationId) return false;
@@ -813,7 +818,7 @@ function approvalAllowsAction(approval, action, conversationId) {
   return allowedActions.includes("*") || allowedActions.includes(action);
 }
 
-function serializeApproval(approval) {
+function legacySerializeApproval(approval) {
   if (!approval) return null;
   return {
     id: approval.id,
@@ -840,15 +845,15 @@ function serializeApproval(approval) {
   };
 }
 
-async function requireApprovedAction(user, approvalId, expectedAction, consumeMeta = null, options = {}) {
-  const normalizedAction = normalizeApprovalAction(expectedAction);
+async function legacyRequireApprovedAction(user, approvalId, expectedAction, consumeMeta = null, options = {}) {
+  const normalizedAction = approvalsNormalizeAction(expectedAction);
   const id = String(approvalId || "").trim();
   const conversationId = normalizeConversationId(options.conversationId);
   if (!id) {
     if (conversationId) {
-      const approvals = await loadApprovals(user);
+      const approvals = await legacyLoadApprovals(user);
       const nextApprovals = approvals.map((item) => touchApprovalExpiration(item, user));
-      const grant = nextApprovals.find((item) => approvalAllowsAction(item, normalizedAction, conversationId));
+      const grant = nextApprovals.find((item) => legacyApprovalAllowsAction(item, normalizedAction, conversationId));
       if (grant) {
         const now = new Date().toISOString();
         const updatedGrant = {
@@ -867,7 +872,7 @@ async function requireApprovedAction(user, approvalId, expectedAction, consumeMe
             }
           ]
         };
-        await saveApprovals(user, nextApprovals.map((item) => (item.id === updatedGrant.id ? updatedGrant : item)));
+        await legacySaveApprovals(user, nextApprovals.map((item) => (item.id === updatedGrant.id ? updatedGrant : item)));
         await persistApprovalSummary(user, updatedGrant);
         return updatedGrant;
       }
@@ -876,7 +881,7 @@ async function requireApprovedAction(user, approvalId, expectedAction, consumeMe
     error.statusCode = 403;
     throw error;
   }
-  const { approval, approvals } = await findApproval(user, id);
+  const { approval, approvals } = await legacyFindApproval(user, id);
   if (!approval) {
     const error = new Error("approval nao encontrado");
     error.statusCode = 403;
@@ -888,7 +893,7 @@ async function requireApprovedAction(user, approvalId, expectedAction, consumeMe
     throw error;
   }
   if (approval.kind === "conversation_grant") {
-    if (!approvalAllowsAction(approval, normalizedAction, conversationId || approval.conversation_id)) {
+    if (!legacyApprovalAllowsAction(approval, normalizedAction, conversationId || approval.conversation_id)) {
       const error = new Error(`grant invalido para a acao ${normalizedAction}`);
       error.statusCode = 403;
       throw error;
@@ -910,7 +915,7 @@ async function requireApprovedAction(user, approvalId, expectedAction, consumeMe
         }
       ]
     };
-    await saveApprovals(user, approvals.map((item) => (item.id === updatedGrant.id ? updatedGrant : item)));
+    await legacySaveApprovals(user, approvals.map((item) => (item.id === updatedGrant.id ? updatedGrant : item)));
     await persistApprovalSummary(user, updatedGrant);
     return updatedGrant;
   }
@@ -943,7 +948,7 @@ async function requireApprovedAction(user, approvalId, expectedAction, consumeMe
     ]
   };
   const next = approvals.map((item) => (item.id === updated.id ? updated : item));
-  await saveApprovals(user, next);
+  await legacySaveApprovals(user, next);
   await persistApprovalSummary(user, updated);
   return updated;
 }
@@ -1252,7 +1257,7 @@ function clampFsReadMaxBytes(value) {
   ensureUserDirs,
   userWorkspaceDir,
   clampFsReadMaxBytes,
-  requireApprovedAction
+  requireApprovedAction: (...args) => approvalsRequireApprovedAction(...args)
 }));
 
 function clampApprovalTtlMs(value) {
@@ -1289,6 +1294,29 @@ function normalizeConversationId(value) {
     .replace(/^_+|_+$/g, "")
     .slice(0, 160);
 }
+
+({
+  handleApprovalsApi: approvalsHandleApi,
+  normalizeApprovalAction: approvalsNormalizeAction,
+  requireApprovedAction: approvalsRequireApprovedAction
+} = createApprovalsModule({
+  readFile,
+  writeFile,
+  ensureUserDirs,
+  userApprovalsFile,
+  approvalStateKey: APPROVAL_STATE_KEY,
+  stateLoadUserState,
+  stateSaveUserState,
+  sanitizeId,
+  sendJson,
+  parseJsonBody,
+  clampApprovalTtlMs,
+  defaultApprovalTtlMs: DEFAULT_APPROVAL_TTL_MS,
+  generateApprovalId,
+  normalizeApprovalAction,
+  normalizeConversationId,
+  redactApprovalPayload
+}));
 
 function normalizeExecEnv(input) {
   if (input === undefined || input === null) return {};
@@ -1587,7 +1615,7 @@ async function createExecution(user, input) {
   const payload = normalizeExecPayload(input);
   const policy = validateExecPolicy(payload);
   const workdir = fsWorkspacePath(user, payload.cwd);
-  const approval = await requireApprovedAction(
+  const approval = await approvalsRequireApprovedAction(
     user,
     input?.approval_id,
     "exec",
@@ -2662,7 +2690,7 @@ async function handleGhostSearch(req, res, user) {
 
   try {
     const payload = await parseJsonBody(req);
-    await requireApprovedAction(user, payload.approval_id, "ghost_search", {
+    await approvalsRequireApprovedAction(user, payload.approval_id, "ghost_search", {
       route: "/api/ghost-search",
       query: String(payload.query || "").trim().slice(0, 120)
     }, {
@@ -2725,7 +2753,7 @@ async function handleSkillsApi(req, res, url, user) {
       sendJson(res, 404, { error: "Skill not found" });
       return;
     }
-    await requireApprovedAction(user, url.searchParams.get("approval_id"), "skill_delete", {
+    await approvalsRequireApprovedAction(user, url.searchParams.get("approval_id"), "skill_delete", {
       route: "/api/skills/:id",
       id
     }, {
@@ -2790,7 +2818,7 @@ async function legacyHandleSystemPromptsApi(req, res, url, user) {
       return;
     }
     legacyAssertSystemPromptPermission(user, existingRecord.item);
-    await requireApprovedAction(user, url.searchParams.get("approval_id"), "system_prompt_delete", {
+    await approvalsRequireApprovedAction(user, url.searchParams.get("approval_id"), "system_prompt_delete", {
       route: "/api/system-prompts/:scope/:id",
       id,
       scope
@@ -2959,7 +2987,7 @@ async function legacyHandleFsApi(req, res, url, user) {
     }
     const { rel, absolute } = workspacePath(user, requestedPath);
     await lstat(absolute);
-    await requireApprovedAction(user, url.searchParams.get("approval_id"), "fs_delete", {
+    await approvalsRequireApprovedAction(user, url.searchParams.get("approval_id"), "fs_delete", {
       route: "/api/fs/delete",
       path: requestedPath
     }, {
@@ -3015,21 +3043,21 @@ async function handleCredentialsApi(req, res, user) {
   sendJson(res, 405, { error: "Method not allowed" });
 }
 
-async function handleApprovalsApi(req, res, url, user) {
+async function legacyHandleApprovalsApi(req, res, url, user) {
   if (req.method === "GET" && url.pathname === "/api/approvals") {
-    const approvals = await loadApprovals(user);
+    const approvals = await legacyLoadApprovals(user);
     sendJson(res, 200, {
       ok: true,
-      items: approvals.map(serializeApproval)
+      items: approvals.map(legacySerializeApproval)
     });
     return;
   }
 
   if (req.method === "POST" && url.pathname === "/api/approvals") {
     const payload = await parseJsonBody(req);
-    const approval = normalizeApprovalPayload(payload, user);
-    await upsertApproval(user, approval);
-    sendJson(res, 201, { ok: true, item: serializeApproval(approval) });
+    const approval = legacyNormalizeApprovalPayload(payload, user);
+    await legacyUpsertApproval(user, approval);
+    sendJson(res, 201, { ok: true, item: legacySerializeApproval(approval) });
     return;
   }
 
@@ -3045,14 +3073,14 @@ async function handleApprovalsApi(req, res, url, user) {
     return;
   }
 
-  const { approval, approvals } = await findApproval(user, approvalId);
+  const { approval, approvals } = await legacyFindApproval(user, approvalId);
   if (!approval) {
     sendJson(res, 404, { error: "approval nao encontrado" });
     return;
   }
 
   if (parts.length === 1 && req.method === "GET") {
-    sendJson(res, 200, { ok: true, item: serializeApproval(approval) });
+    sendJson(res, 200, { ok: true, item: legacySerializeApproval(approval) });
     return;
   }
 
@@ -3083,9 +3111,9 @@ async function handleApprovalsApi(req, res, url, user) {
         }
       ]
     };
-    await saveApprovals(user, approvals.map((item) => (item.id === next.id ? next : item)));
+    await legacySaveApprovals(user, approvals.map((item) => (item.id === next.id ? next : item)));
     await persistApprovalSummary(user, next);
-    sendJson(res, 200, { ok: true, item: serializeApproval(next) });
+    sendJson(res, 200, { ok: true, item: legacySerializeApproval(next) });
     return;
   }
 
@@ -3397,7 +3425,7 @@ const server = createServer(async (req, res) => {
         return;
       }
       if (url.pathname === "/api/approvals" || url.pathname.startsWith("/api/approvals/")) {
-        await handleApprovalsApi(req, res, url, authUser);
+        await approvalsHandleApi(req, res, url, authUser);
         return;
       }
       if (url.pathname.startsWith("/api/tts/")) {
