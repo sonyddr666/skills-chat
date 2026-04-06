@@ -7,6 +7,7 @@ import { dirname, extname, join, normalize, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url";
 import { createAuthSession } from "./server/auth/session.js";
 import { createApprovalsModule } from "./server/approvals/index.js";
+import { createExecModule } from "./server/exec/index.js";
 import { createFilesystemModule } from "./server/filesystem/index.js";
 import { createHttpUtils } from "./server/http/utils.js";
 import { createStateModule } from "./server/state/index.js";
@@ -148,6 +149,8 @@ let systemPromptsNormalizeScope;
 let approvalsHandleApi;
 let approvalsNormalizeAction;
 let approvalsRequireApprovedAction;
+
+let execHandleApi;
 
 function normalizeLogin(value) {
   return String(value || "").trim().toLowerCase();
@@ -1316,6 +1319,43 @@ function normalizeConversationId(value) {
   normalizeApprovalAction,
   normalizeConversationId,
   redactApprovalPayload
+}));
+
+({
+  handleExecApi: execHandleApi
+} = createExecModule({
+  spawn,
+  randomBytes,
+  readFile,
+  writeFile,
+  mkdir,
+  readdir,
+  existsSync,
+  createWriteStream,
+  join,
+  ensureUserDirs,
+  userRunsDir,
+  fsNormalizeRelativePath,
+  fsWorkspacePath,
+  stateLoadUserState,
+  stateSaveUserState,
+  executionStateKey: EXECUTION_STATE_KEY,
+  maxExecHistoryItems: MAX_EXEC_HISTORY_ITEMS,
+  defaultExecTimeoutMs: DEFAULT_EXEC_TIMEOUT_MS,
+  maxExecTimeoutMs: MAX_EXEC_TIMEOUT_MS,
+  maxExecLogTailBytes: MAX_EXEC_LOG_TAIL_BYTES,
+  execEnabled: EXEC_ENABLED,
+  execAllowAllBins: EXEC_ALLOW_ALL_BINS,
+  execAllowedBins: EXEC_ALLOWED_BINS,
+  execAllowShell: EXEC_ALLOW_SHELL,
+  processEnv: process.env,
+  sendJson,
+  parseJsonBody,
+  parseOptionalBoolean,
+  requireApprovedAction: (...args) => approvalsRequireApprovedAction(...args),
+  normalizeConversationId,
+  inferExecProfile,
+  execProfilePolicy
 }));
 
 function normalizeExecEnv(input) {
@@ -3184,7 +3224,7 @@ async function handleTtsApi(req, res, url) {
   sendJson(res, 405, { error: "Method not allowed" });
 }
 
-async function handleExecApi(req, res, url, user) {
+async function legacyHandleExecApi(req, res, url, user) {
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
@@ -3445,7 +3485,7 @@ const server = createServer(async (req, res) => {
         return;
       }
       if (url.pathname === "/api/exec" || url.pathname.startsWith("/api/exec/")) {
-        await handleExecApi(req, res, url, authUser);
+        await execHandleApi(req, res, url, authUser);
         return;
       }
       if (url.pathname === "/api/system-prompts" || url.pathname.startsWith("/api/system-prompts/")) {
