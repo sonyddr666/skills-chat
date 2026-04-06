@@ -7,6 +7,7 @@ import { dirname, extname, join, normalize, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url";
 import { createAuthSession } from "./server/auth/session.js";
 import { createApprovalsModule } from "./server/approvals/index.js";
+import { createCodexModule } from "./server/chat/codex.js";
 import { createExecModule } from "./server/exec/index.js";
 import { createFilesystemModule } from "./server/filesystem/index.js";
 import { createHttpUtils } from "./server/http/utils.js";
@@ -151,6 +152,8 @@ let approvalsNormalizeAction;
 let approvalsRequireApprovedAction;
 
 let execHandleApi;
+let codexBuildContextMessages;
+let codexRunChat;
 
 function normalizeLogin(value) {
   return String(value || "").trim().toLowerCase();
@@ -1358,6 +1361,22 @@ function normalizeConversationId(value) {
   execProfilePolicy
 }));
 
+({
+  buildCodexContextMessages: codexBuildContextMessages,
+  runCodexChat: codexRunChat
+} = createCodexModule({
+  fetch,
+  URLSearchParams,
+  Buffer,
+  tokenUrl: TOKEN_URL,
+  codexResponsesUrl: CODEX_RESPONSES_URL,
+  openAiOauthClientId: OPENAI_OAUTH_CLIENT_ID,
+  defaultCodexHistoryLimit: DEFAULT_CODEX_HISTORY_LIMIT,
+  defaultCodexModel: DEFAULT_CODEX_MODEL,
+  codexFakeResponses: CODEX_FAKE_RESPONSES,
+  nowMs
+}));
+
 function normalizeExecEnv(input) {
   if (input === undefined || input === null) return {};
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -1831,13 +1850,13 @@ function nowMs() {
   return Date.now();
 }
 
-function clampCodexHistoryLimit(value) {
+function legacyClampCodexHistoryLimit(value) {
   const parsed = Number.parseInt(String(value ?? DEFAULT_CODEX_HISTORY_LIMIT), 10);
   if (Number.isNaN(parsed)) return DEFAULT_CODEX_HISTORY_LIMIT;
   return Math.max(2, Math.min(200, parsed));
 }
 
-function decodeBase64Url(value) {
+function legacyDecodeBase64Url(value) {
   const normalized = String(value || "")
     .replace(/-/g, "+")
     .replace(/_/g, "/");
@@ -1846,25 +1865,25 @@ function decodeBase64Url(value) {
   return Buffer.from(padded, "base64").toString("utf8");
 }
 
-function decodeJwtPayload(token) {
+function legacyDecodeJwtPayload(token) {
   const parts = String(token || "").split(".");
   if (parts.length < 2) return null;
   try {
-    return JSON.parse(decodeBase64Url(parts[1]));
+    return JSON.parse(legacyDecodeBase64Url(parts[1]));
   } catch {
     return null;
   }
 }
 
-function extractCodexAccountId(token) {
-  const payload = decodeJwtPayload(token);
+function legacyExtractCodexAccountId(token) {
+  const payload = legacyDecodeJwtPayload(token);
   if (!payload || typeof payload !== "object") return null;
   const auth = payload["https://api.openai.com/auth"];
   if (!auth || typeof auth !== "object") return null;
   return auth.chatgpt_account_id || null;
 }
 
-function parseCodexErrorPayload(raw) {
+function legacyParseCodexErrorPayload(raw) {
   const trimmed = String(raw || "").trim();
   if (!trimmed) return null;
   try {
@@ -1874,14 +1893,14 @@ function parseCodexErrorPayload(raw) {
   }
 }
 
-function isCodexDeactivatedWorkspaceError(raw) {
-  const payload = parseCodexErrorPayload(raw);
+function legacyIsCodexDeactivatedWorkspaceError(raw) {
+  const payload = legacyParseCodexErrorPayload(raw);
   if (!payload || typeof payload !== "object") return false;
   const code = payload.detail?.code || payload.error?.code || payload.code || null;
   return String(code || "").trim() === "deactivated_workspace";
 }
 
-function normalizeCodexAuth(input) {
+function legacyNormalizeCodexAuth(input) {
   let auth = input;
   if (typeof auth === "string") {
     const trimmed = auth.trim();
@@ -1917,7 +1936,7 @@ function normalizeCodexAuth(input) {
     : (typeof auth.chatgpt_account_id === "string" && auth.chatgpt_account_id.trim()
       ? auth.chatgpt_account_id.trim()
       : null);
-  const derivedAccountId = explicitAccountId ? null : extractCodexAccountId(access);
+  const derivedAccountId = explicitAccountId ? null : legacyExtractCodexAccountId(access);
 
   return {
     access,
@@ -1928,7 +1947,7 @@ function normalizeCodexAuth(input) {
   };
 }
 
-async function refreshCodexAuth(auth) {
+async function legacyRefreshCodexAuth(auth) {
   if (!auth.refresh) return auth;
 
   const body = new URLSearchParams({
@@ -1952,7 +1971,7 @@ async function refreshCodexAuth(auth) {
   const explicitAccountId = auth.accountIdSource === "provided" && typeof auth.accountId === "string" && auth.accountId.trim()
     ? auth.accountId.trim()
     : null;
-  const derivedAccountId = explicitAccountId ? null : extractCodexAccountId(payload.access_token);
+  const derivedAccountId = explicitAccountId ? null : legacyExtractCodexAccountId(payload.access_token);
   return {
     access: payload.access_token,
     refresh: payload.refresh_token || auth.refresh,
@@ -1962,24 +1981,24 @@ async function refreshCodexAuth(auth) {
   };
 }
 
-async function getValidCodexAuth(input) {
-  const auth = normalizeCodexAuth(input);
+async function legacyGetValidCodexAuth(input) {
+  const auth = legacyNormalizeCodexAuth(input);
   if (auth.refresh && auth.expires && auth.expires <= nowMs() + 300000) {
-    return refreshCodexAuth(auth);
+    return legacyRefreshCodexAuth(auth);
   }
   return auth;
 }
 
-function collectSseChunks(value, keyName, chunks) {
+function legacyCollectSseChunks(value, keyName, chunks) {
   if (Array.isArray(value)) {
-    for (const item of value) collectSseChunks(item, keyName, chunks);
+    for (const item of value) legacyCollectSseChunks(item, keyName, chunks);
     return;
   }
 
   if (!value || typeof value !== "object") return;
 
   for (const nested of Object.values(value)) {
-    collectSseChunks(nested, keyName, chunks);
+    legacyCollectSseChunks(nested, keyName, chunks);
   }
 
   if (typeof value[keyName] === "string") {
@@ -1987,7 +2006,7 @@ function collectSseChunks(value, keyName, chunks) {
   }
 }
 
-function extractCodexResponseOutputText(responseObj) {
+function legacyExtractCodexResponseOutputText(responseObj) {
   const chunks = [];
   if (!responseObj || typeof responseObj !== "object") return chunks;
   const output = Array.isArray(responseObj.output) ? responseObj.output : [];
@@ -2001,7 +2020,7 @@ function extractCodexResponseOutputText(responseObj) {
   return chunks;
 }
 
-function normalizeCodexFunctionCallItem(item) {
+function legacyNormalizeCodexFunctionCallItem(item) {
   if (!item || typeof item !== "object") return null;
   if (item.type !== "function_call") return null;
 
@@ -2035,18 +2054,18 @@ function normalizeCodexFunctionCallItem(item) {
   };
 }
 
-function extractCodexResponseFunctionCalls(responseObj) {
+function legacyExtractCodexResponseFunctionCalls(responseObj) {
   const calls = [];
   if (!responseObj || typeof responseObj !== "object") return calls;
   const output = Array.isArray(responseObj.output) ? responseObj.output : [];
   for (const item of output) {
-    const normalized = normalizeCodexFunctionCallItem(item);
+    const normalized = legacyNormalizeCodexFunctionCallItem(item);
     if (normalized) calls.push(normalized);
   }
   return calls;
 }
 
-function parseCodexSsePayload(raw) {
+function legacyParseCodexSsePayload(raw) {
   const events = [];
   for (const line of String(raw || "").split(/\r?\n/)) {
     if (!line.startsWith("data:")) continue;
@@ -2071,13 +2090,13 @@ function parseCodexSsePayload(raw) {
     }
 
     const deltas = [];
-    collectSseChunks(event, "delta", deltas);
+      legacyCollectSseChunks(event, "delta", deltas);
     for (const delta of deltas) {
       if (typeof delta === "string") deltaParts.push(delta);
     }
 
     if (event?.type === "response.output_item.added") {
-      const normalized = normalizeCodexFunctionCallItem(event.item);
+      const normalized = legacyNormalizeCodexFunctionCallItem(event.item);
       if (normalized) {
         const key = Number.isInteger(event.output_index) ? event.output_index : streamedToolCalls.size;
         streamedToolCalls.set(key, normalized);
@@ -2092,7 +2111,7 @@ function parseCodexSsePayload(raw) {
     }
 
     if (event?.type === "response.function_call_arguments.done") {
-      const normalized = normalizeCodexFunctionCallItem(event.item);
+      const normalized = legacyNormalizeCodexFunctionCallItem(event.item);
       if (normalized) {
         const key = Number.isInteger(event.output_index) ? event.output_index : streamedToolCalls.size;
         streamedToolCalls.set(key, normalized);
@@ -2101,7 +2120,7 @@ function parseCodexSsePayload(raw) {
 
     if (event?.type === "response.completed") {
       finalResponse = event.response && typeof event.response === "object" ? event.response : null;
-      finalTextParts = extractCodexResponseOutputText(event.response);
+      finalTextParts = legacyExtractCodexResponseOutputText(event.response);
     }
   }
 
@@ -2113,7 +2132,7 @@ function parseCodexSsePayload(raw) {
     last = part;
   }
 
-  const toolCalls = extractCodexResponseFunctionCalls(finalResponse);
+  const toolCalls = legacyExtractCodexResponseFunctionCalls(finalResponse);
   if (!toolCalls.length && streamedToolCalls.size) {
     for (const call of streamedToolCalls.values()) {
       let parsedArguments = {};
@@ -2157,18 +2176,18 @@ function parseCodexSsePayload(raw) {
   };
 }
 
-function makeCodexInputMessage(role, content) {
+function legacyMakeCodexInputMessage(role, content) {
   return { role, content };
 }
 
-function assetDataUrl(asset) {
+function legacyAssetDataUrl(asset) {
   const mimeType = typeof asset?.mimeType === "string" ? asset.mimeType.trim() : "";
   const data = typeof asset?.data === "string" ? asset.data.trim() : "";
   if (!mimeType || !data) return null;
   return `data:${mimeType};base64,${data}`;
 }
 
-function decodeInlineTextAsset(asset) {
+function legacyDecodeInlineTextAsset(asset) {
   const mimeType = String(asset?.mimeType || "").trim().toLowerCase();
   const data = typeof asset?.data === "string" ? asset.data.trim() : "";
   const isTextLike = mimeType.startsWith("text/")
@@ -2186,12 +2205,12 @@ function decodeInlineTextAsset(asset) {
   }
 }
 
-function buildCodexFileSummaryPart(file) {
+function legacyBuildCodexFileSummaryPart(file) {
   const name = typeof file?.name === "string" && file.name.trim() ? file.name.trim() : "arquivo";
   const mimeType = typeof file?.mimeType === "string" && file.mimeType.trim()
     ? file.mimeType.trim()
     : "application/octet-stream";
-  const decoded = decodeInlineTextAsset(file);
+  const decoded = legacyDecodeInlineTextAsset(file);
 
   if (decoded) {
     const trimmed = decoded.trim();
@@ -2210,10 +2229,10 @@ function buildCodexFileSummaryPart(file) {
   };
 }
 
-function buildCodexContextMessages(messages, historyLimit) {
+function legacyBuildCodexContextMessages(messages, historyLimit) {
   const normalized = [];
   const source = Array.isArray(messages) ? messages : [];
-  const limit = clampCodexHistoryLimit(historyLimit);
+  const limit = legacyClampCodexHistoryLimit(historyLimit);
   const trimmedSource = source.length > limit ? source.slice(-limit) : source;
   const attachmentIndices = new Set(
     trimmedSource
@@ -2239,7 +2258,7 @@ function buildCodexContextMessages(messages, historyLimit) {
     }
 
     if (message?.type === "function_call") {
-      const normalizedCall = normalizeCodexFunctionCallItem(message);
+        const normalizedCall = legacyNormalizeCodexFunctionCallItem(message);
       if (normalizedCall) {
         normalized.push({
           type: "function_call",
@@ -2272,7 +2291,7 @@ function buildCodexContextMessages(messages, historyLimit) {
 
       if (includeAttachments) {
         for (const image of images) {
-          const imageUrl = assetDataUrl(image);
+            const imageUrl = legacyAssetDataUrl(image);
           if (!imageUrl) continue;
           content.push({
             type: "input_image",
@@ -2282,7 +2301,7 @@ function buildCodexContextMessages(messages, historyLimit) {
         }
 
         for (const file of files) {
-          content.push(buildCodexFileSummaryPart(file));
+            content.push(legacyBuildCodexFileSummaryPart(file));
         }
       } else if (images.length || files.length) {
         const labels = [];
@@ -2296,13 +2315,13 @@ function buildCodexContextMessages(messages, historyLimit) {
     }
 
     if (!content.length) continue;
-    normalized.push(makeCodexInputMessage(role, content));
+    normalized.push(legacyMakeCodexInputMessage(role, content));
   }
 
   return normalized;
 }
 
-function normalizeCodexTool(tool) {
+function legacyNormalizeCodexTool(tool) {
   if (!tool || typeof tool !== "object" || Array.isArray(tool)) return null;
   if (tool.type !== "function") return null;
   if (typeof tool.name !== "string" || !tool.name.trim()) return null;
@@ -2315,7 +2334,7 @@ function normalizeCodexTool(tool) {
   };
 }
 
-function buildFakeCodexResponse(messages, userInput, model, sessionId) {
+function legacyBuildFakeCodexResponse(messages, userInput, model, sessionId) {
   const responseId = `fake-${sessionId || "skillflow"}-${nowMs()}`;
   return {
     id: responseId,
@@ -2327,21 +2346,21 @@ function buildFakeCodexResponse(messages, userInput, model, sessionId) {
   };
 }
 
-async function runCodexChat(payload) {
-  const auth = await getValidCodexAuth(payload.auth);
+async function legacyRunCodexChat(payload) {
+  const auth = await legacyGetValidCodexAuth(payload.auth);
   const model = String(payload.model || DEFAULT_CODEX_MODEL);
   const reasoning = String(payload.reasoning || DEFAULT_CODEX_REASONING);
   const instructions = String(payload.instructions || DEFAULT_CODEX_INSTRUCTIONS);
   const contextMessages = Array.isArray(payload.input) && payload.input.length
     ? payload.input
-    : buildCodexContextMessages(payload.messages, payload.history_limit);
+      : legacyBuildCodexContextMessages(payload.messages, payload.history_limit);
   const lastUserInput = [...contextMessages]
     .reverse()
     .find((item) => item?.role === "user" && Array.isArray(item.content));
   const userInput = lastUserInput?.content?.find((part) => part?.type === "input_text" && typeof part.text === "string")
     ?.text || "[mensagem multimodal sem texto]";
   const tools = Array.isArray(payload.tools)
-    ? payload.tools.map(normalizeCodexTool).filter(Boolean)
+      ? payload.tools.map(legacyNormalizeCodexTool).filter(Boolean)
     : [];
 
   if (!contextMessages.length || !lastUserInput) {
@@ -2350,7 +2369,7 @@ async function runCodexChat(payload) {
 
   if (CODEX_FAKE_RESPONSES) {
     return {
-      data: buildFakeCodexResponse(contextMessages, userInput, model, payload.session_id),
+        data: legacyBuildFakeCodexResponse(contextMessages, userInput, model, payload.session_id),
       auth
     };
   }
@@ -2382,7 +2401,7 @@ async function runCodexChat(payload) {
 
   let response = await sendCodexRequest(true);
   let raw = await response.text();
-  if (!response.ok && auth.accountId && auth.accountIdSource !== "provided" && isCodexDeactivatedWorkspaceError(raw)) {
+  if (!response.ok && auth.accountId && auth.accountIdSource !== "provided" && legacyIsCodexDeactivatedWorkspaceError(raw)) {
     response = await sendCodexRequest(false);
     raw = await response.text();
   }
@@ -2391,7 +2410,7 @@ async function runCodexChat(payload) {
   }
 
   return {
-    data: parseCodexSsePayload(raw),
+      data: legacyParseCodexSsePayload(raw),
     auth
   };
 }
@@ -2498,7 +2517,7 @@ async function runGeminiChatJob(user, jobId, payload) {
 async function runCodexChatJob(user, jobId, payload) {
   const paths = chatJobPaths(user, jobId);
   await mkdir(paths.dir, { recursive: true });
-  const result = await runCodexChat({
+  const result = await codexRunChat({
     auth: payload.auth,
     model: payload.model,
     reasoning: payload.reasoning || DEFAULT_CODEX_REASONING,
@@ -2511,7 +2530,7 @@ async function runCodexChatJob(user, jobId, payload) {
   });
   const contextItems = Array.isArray(payload.input) && payload.input.length
     ? payload.input
-    : buildCodexContextMessages(payload.messages, payload.history_limit);
+    : codexBuildContextMessages(payload.messages, payload.history_limit);
   const snapshot = {
     ok: true,
     provider: "codex",
@@ -2635,7 +2654,7 @@ async function handleChatApi(req, res, user) {
     return;
   }
 
-  const result = await runCodexChat({
+  const result = await codexRunChat({
     auth: normalized.auth,
     model: normalized.model,
     reasoning: normalized.reasoning || DEFAULT_CODEX_REASONING,
@@ -2649,7 +2668,7 @@ async function handleChatApi(req, res, user) {
 
   const contextItems = Array.isArray(normalized.input) && normalized.input.length
     ? normalized.input
-    : buildCodexContextMessages(normalized.messages, normalized.history_limit);
+    : codexBuildContextMessages(normalized.messages, normalized.history_limit);
 
   sendJson(res, 200, {
     ok: true,
