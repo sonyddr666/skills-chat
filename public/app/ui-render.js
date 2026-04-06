@@ -331,6 +331,37 @@
             setupChatObserver();
         }
 
+        function renderChat(forceScrollToBottom = false) {
+            const chatEl = global.document.getElementById('chat');
+            const activeId = deps.getActiveId();
+            const messages = activeId ? deps.getConversationMessages(activeId) : [];
+            const prevScrollTop = chatEl?.scrollTop || 0;
+            const prevScrollHeight = chatEl?.scrollHeight || 0;
+            const prevClientHeight = chatEl?.clientHeight || 0;
+            const shouldStickToBottom = !!forceScrollToBottom || deps.getChatStickToBottom() || isChatNearBottom(chatEl);
+
+            if (!activeId || !messages.length) {
+                chatEl.innerHTML = renderEmptyChat();
+                deps.setChatRenderedFrom(0);
+                deps.setChatRenderedCount(0);
+                cleanupChatObserver();
+                deps.renderConversationApprovalBanner();
+                return;
+            }
+
+            const initialRender = renderInitialChatSlice(activeId, messages);
+            chatEl.innerHTML = initialRender.html;
+            deps.setChatRenderedFrom(initialRender.from);
+            deps.setChatRenderedCount(initialRender.count);
+
+            finalizeRenderChat({
+                prevScrollTop,
+                prevScrollHeight,
+                prevClientHeight,
+                shouldStickToBottom
+            });
+        }
+
         return {
             autoH,
             cachedMsgHTML,
@@ -341,6 +372,7 @@
             renderInlineMessageImage,
             renderMessageActions,
             renderMessageAttachments,
+            renderChat,
             renderMessageHtml,
             renderMessageFile,
             renderMessageMeta,

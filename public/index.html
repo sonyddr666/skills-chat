@@ -6566,32 +6566,7 @@ return await createBackendApprovalRequest({
 
             function cachedMsgHTML(convId, msg, idx) { return uiRenderRuntime.cachedMsgHTML(convId, msg, idx); }
 
-            function renderChat(forceScrollToBottom = false) {
-                const c = document.getElementById('chat');
-                const messages = activeId ? conversationMessages(convs[activeId]) : [];
-                const prevScrollTop = c?.scrollTop || 0;
-                const prevScrollHeight = c?.scrollHeight || 0;
-                const prevClientHeight = c?.clientHeight || 0;
-                const shouldStickToBottom = !!forceScrollToBottom || chatStickToBottom || isChatNearBottom(c);
-                if (!activeId || !messages.length) {
-                    c.innerHTML = uiRenderRuntime.renderEmptyChat();
-                    chatRenderedFrom = 0;
-                    chatRenderedCount = 0;
-                    cleanupChatObserver();
-                    renderConversationApprovalBanner();
-                    return;
-                }
-                const initialRender = uiRenderRuntime.renderInitialChatSlice(activeId, messages);
-                c.innerHTML = initialRender.html;
-                chatRenderedFrom = initialRender.from;
-                chatRenderedCount = initialRender.count;
-                uiRenderRuntime.finalizeRenderChat({
-                    prevScrollTop,
-                    prevScrollHeight,
-                    prevClientHeight,
-                    shouldStickToBottom
-                });
-            }
+            function renderChat(forceScrollToBottom = false) { return uiRenderRuntime.renderChat(forceScrollToBottom); }
 
             function loadOlderMessages() { return uiRenderRuntime.loadOlderMessages(); }
 
