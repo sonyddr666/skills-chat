@@ -6537,7 +6537,9 @@ return await createBackendApprovalRequest({
                 conversationTitle,
                 conversationTs,
                 esc,
-                fileIconForMessage
+                fileIconForMessage,
+                renderMarkdown,
+                renderMessageTrace
             });
 
             function renderSidebar() { return uiRenderRuntime.renderSidebar(); }
@@ -6752,21 +6754,7 @@ return await createBackendApprovalRequest({
 
             function renderInlineMessageImage(file) { return uiRenderRuntime.renderInlineMessageImage(file); }
 
-            function msgHTML(m, i) {
-                const t = new Date(m.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                let body = uiRenderRuntime.renderMessageAttachments(m);
-                const traceHtml = m.role === 'model' ? renderMessageTrace(m.trace) : '';
-
-                if (m.role === 'model') {
-                    body += `<div class="msg-render-text" id="bb${i}">${renderMarkdown(m.text || '')}</div>`;
-                    body += traceHtml;
-                } else {
-                    body += `<p>${esc(m.text || '').replace(/\n/g, '<br>')}</p>`;
-                }
-                const actionsHtml = uiRenderRuntime.renderMessageActions(i, m.role);
-                const metaHtml = uiRenderRuntime.renderMessageMeta(m, i, t);
-                return uiRenderRuntime.renderMessageShell(m, i, body, metaHtml, actionsHtml);
-            }
+            function msgHTML(m, i) { return uiRenderRuntime.renderMessageHtml(m, i); }
 
             function copyMsg(i) {
                 navigator.clipboard.writeText(convs[activeId].msgs[i].text)

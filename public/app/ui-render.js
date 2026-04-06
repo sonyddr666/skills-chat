@@ -185,6 +185,23 @@
   </div>`;
         }
 
+        function renderMessageHtml(message, messageIndex) {
+            const formattedTime = new Date(message.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            let body = renderMessageAttachments(message);
+            const traceHtml = message.role === 'model' ? deps.renderMessageTrace(message.trace) : '';
+
+            if (message.role === 'model') {
+                body += `<div class="msg-render-text" id="bb${messageIndex}">${deps.renderMarkdown(message.text || '')}</div>`;
+                body += traceHtml;
+            } else {
+                body += `<p>${deps.esc(message.text || '').replace(/\n/g, '<br>')}</p>`;
+            }
+
+            const actionsHtml = renderMessageActions(messageIndex, message.role);
+            const metaHtml = renderMessageMeta(message, messageIndex, formattedTime);
+            return renderMessageShell(message, messageIndex, body, metaHtml, actionsHtml);
+        }
+
         return {
             autoH,
             isChatNearBottom,
@@ -192,6 +209,7 @@
             renderInlineMessageImage,
             renderMessageActions,
             renderMessageAttachments,
+            renderMessageHtml,
             renderMessageFile,
             renderMessageMeta,
             renderMessageShell,
