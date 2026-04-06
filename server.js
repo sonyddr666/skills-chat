@@ -9,6 +9,7 @@ import { createAuthSession } from "./server/auth/session.js";
 import { createApprovalsModule } from "./server/approvals/index.js";
 import { createCodexModule } from "./server/chat/codex.js";
 import { createGeminiModule } from "./server/chat/gemini.js";
+import { createChatJobsModule } from "./server/chat/jobs.js";
 import { createExecModule } from "./server/exec/index.js";
 import { createFilesystemModule } from "./server/filesystem/index.js";
 import { createHttpUtils } from "./server/http/utils.js";
@@ -157,6 +158,8 @@ let codexBuildContextMessages;
 let codexRunChat;
 let geminiProxyStream;
 let geminiRunChatJob;
+let chatJobsHandleApi;
+let chatJobsNormalizePayload;
 
 function normalizeLogin(value) {
   return String(value || "").trim().toLowerCase();
@@ -385,11 +388,11 @@ function legacyWorkspacePath(user, input) {
   return { rel, absolute };
 }
 
-function generateChatJobId() {
+function legacyGenerateChatJobId() {
   return `chat_${Date.now().toString(36)}_${randomBytes(4).toString("hex")}`;
 }
 
-function chatJobPaths(user, jobId) {
+function legacyChatJobPaths(user, jobId) {
   const safeId = sanitizeId(jobId);
   const dir = join(userChatJobsDir(user), safeId);
   return {
@@ -401,15 +404,15 @@ function chatJobPaths(user, jobId) {
   };
 }
 
-async function writeChatJobMeta(user, jobId, meta) {
-  const paths = chatJobPaths(user, jobId);
+async function legacyWriteChatJobMeta(user, jobId, meta) {
+  const paths = legacyChatJobPaths(user, jobId);
   await mkdir(paths.dir, { recursive: true });
   await writeFile(paths.meta, `${JSON.stringify(meta, null, 2)}\n`, "utf8");
   return meta;
 }
 
-async function readChatJobMeta(user, jobId) {
-  const paths = chatJobPaths(user, jobId);
+async function legacyReadChatJobMeta(user, jobId) {
+  const paths = legacyChatJobPaths(user, jobId);
   try {
     const raw = await readFile(paths.meta, "utf8");
     return JSON.parse(raw);
@@ -423,9 +426,9 @@ async function readChatJobMeta(user, jobId) {
   }
 }
 
-async function readChatJobSnapshot(user, jobId) {
-  const paths = chatJobPaths(user, jobId);
-  const meta = await readChatJobMeta(user, jobId);
+async function legacyReadChatJobSnapshot(user, jobId) {
+  const paths = legacyChatJobPaths(user, jobId);
+  const meta = await legacyReadChatJobMeta(user, jobId);
   const snapshot = { job: meta };
 
   if (meta.provider === "gemini" && existsSync(paths.stream)) {
@@ -439,7 +442,7 @@ async function readChatJobSnapshot(user, jobId) {
   return snapshot;
 }
 
-function normalizeChatJobPayload(input, credentials = {}) {
+function legacyNormalizeChatJobPayload(input, credentials = {}) {
   const payload = input && typeof input === "object" && !Array.isArray(input) ? input : {};
   const provider = String(payload.provider || "").trim().toLowerCase();
 
@@ -1391,6 +1394,34 @@ function normalizeConversationId(value) {
   createWriteStream,
   writeFile,
   mkdir
+}));
+
+({
+  handleChatJobsApi: chatJobsHandleApi,
+  normalizeChatJobPayload: chatJobsNormalizePayload
+} = createChatJobsModule({
+  randomBytes,
+  join,
+  mkdir,
+  readFile,
+  writeFile,
+  existsSync,
+  sanitizeId,
+  ensureUserDirs,
+  userChatJobsDir,
+  getConfiguredGeminiApiKey,
+  getConfiguredCodexAuth,
+  defaultCodexReasoning: DEFAULT_CODEX_REASONING,
+  defaultCodexHistoryLimit: DEFAULT_CODEX_HISTORY_LIMIT,
+  defaultCodexInstructions: DEFAULT_CODEX_INSTRUCTIONS,
+  chatJobStatusRunning: CHAT_JOB_STATUS_RUNNING,
+  chatJobStatusCompleted: CHAT_JOB_STATUS_COMPLETED,
+  chatJobStatusFailed: CHAT_JOB_STATUS_FAILED,
+  geminiRunChatJob,
+  codexRunChat,
+  codexBuildContextMessages,
+  sendJson,
+  parseJsonBody
 }));
 
 function normalizeExecEnv(input) {
@@ -2530,8 +2561,8 @@ async function legacyRunGeminiChatJob(user, jobId, payload) {
   }
 }
 
-async function runCodexChatJob(user, jobId, payload) {
-  const paths = chatJobPaths(user, jobId);
+async function legacyRunCodexChatJob(user, jobId, payload) {
+  const paths = legacyChatJobPaths(user, jobId);
   await mkdir(paths.dir, { recursive: true });
   const result = await codexRunChat({
     auth: payload.auth,
@@ -2558,8 +2589,8 @@ async function runCodexChatJob(user, jobId, payload) {
   await writeFile(paths.result, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
 }
 
-async function finalizeChatJob(user, jobId, updater) {
-  const previous = await readChatJobMeta(user, jobId);
+async function legacyFinalizeChatJob(user, jobId, updater) {
+  const previous = await legacyReadChatJobMeta(user, jobId);
   const next = {
     ...previous,
     ...updater,
@@ -2568,29 +2599,29 @@ async function finalizeChatJob(user, jobId, updater) {
   if (next.status === CHAT_JOB_STATUS_COMPLETED || next.status === CHAT_JOB_STATUS_FAILED) {
     next.finished_at = next.finished_at || new Date().toISOString();
   }
-  await writeChatJobMeta(user, jobId, next);
+  await legacyWriteChatJobMeta(user, jobId, next);
   return next;
 }
 
-async function executeChatJob(user, jobId, payload) {
+async function legacyExecuteChatJob(user, jobId, payload) {
   activeChatJobs.set(jobId, { startedAt: Date.now(), provider: payload.provider });
   try {
     if (payload.provider === "gemini") {
-      await geminiRunChatJob(user, jobId, payload, chatJobPaths);
+      await geminiRunChatJob(user, jobId, payload, legacyChatJobPaths);
     } else if (payload.provider === "codex") {
-      await runCodexChatJob(user, jobId, payload);
+      await legacyRunCodexChatJob(user, jobId, payload);
     } else {
       const error = new Error("Unsupported provider for backend chat route");
       error.statusCode = 400;
       throw error;
     }
 
-    await finalizeChatJob(user, jobId, {
+    await legacyFinalizeChatJob(user, jobId, {
       status: CHAT_JOB_STATUS_COMPLETED,
       error: null
     });
   } catch (error) {
-    await finalizeChatJob(user, jobId, {
+    await legacyFinalizeChatJob(user, jobId, {
       status: CHAT_JOB_STATUS_FAILED,
       error: {
         message: error.message,
@@ -2602,11 +2633,11 @@ async function executeChatJob(user, jobId, payload) {
   }
 }
 
-async function createChatJob(user, input) {
+async function legacyCreateChatJob(user, input) {
   await ensureUserDirs(user);
   const credentials = await loadUserCredentials(user);
-  const payload = normalizeChatJobPayload(input, credentials);
-  const jobId = generateChatJobId();
+  const payload = legacyNormalizeChatJobPayload(input, credentials);
+  const jobId = legacyGenerateChatJobId();
   const meta = {
     id: jobId,
     provider: payload.provider,
@@ -2617,8 +2648,8 @@ async function createChatJob(user, input) {
     finished_at: null,
     error: null
   };
-  await writeChatJobMeta(user, jobId, meta);
-  executeChatJob(user, jobId, payload).catch((error) => {
+  await legacyWriteChatJobMeta(user, jobId, meta);
+  legacyExecuteChatJob(user, jobId, payload).catch((error) => {
     console.error(`[ChatJob] ${jobId} falhou:`, error);
   });
   return meta;
@@ -2637,21 +2668,7 @@ async function handleChatApi(req, res, user) {
 
   const url = new URL(req.url || "/api/chat", `http://${req.headers.host}`);
 
-  if (req.method === "POST" && url.pathname === "/api/chat/jobs") {
-    const payload = await parseJsonBody(req);
-    const job = await createChatJob(user, payload);
-    sendJson(res, 202, { ok: true, job });
-    return;
-  }
-
-  if (req.method === "GET" && url.pathname.startsWith("/api/chat/jobs/")) {
-    const jobId = sanitizeId(url.pathname.slice("/api/chat/jobs/".length));
-    if (!jobId) {
-      sendJson(res, 400, { error: "job id ausente." });
-      return;
-    }
-    const snapshot = await readChatJobSnapshot(user, jobId);
-    sendJson(res, 200, { ok: true, ...snapshot, active: activeChatJobs.has(jobId) });
+  if (await chatJobsHandleApi(req, res, url, user, loadUserCredentials)) {
     return;
   }
 
@@ -2662,7 +2679,7 @@ async function handleChatApi(req, res, user) {
 
   const payload = await parseJsonBody(req);
   const credentials = await loadUserCredentials(user);
-  const normalized = normalizeChatJobPayload(payload, credentials);
+  const normalized = chatJobsNormalizePayload(payload, credentials);
   const provider = normalized.provider;
 
   if (provider === "gemini") {
