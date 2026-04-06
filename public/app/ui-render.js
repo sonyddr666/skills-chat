@@ -80,9 +80,46 @@
             el.style.height = Math.min(el.scrollHeight, 200) + 'px';
         }
 
+        function renderMessageFile(file) {
+            const href = deps.buildMessageFileDownloadUrl(file);
+            const action = href
+                ? `<a class="cp" href="${href}" download onclick="event.stopPropagation()">Baixar</a>`
+                : '';
+            const subtitle = file?.path
+                ? `<span style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${deps.esc(file.path)}</span>`
+                : '';
+
+            return `<div class="file-preview">
+      <span class="file-icon">${deps.fileIconForMessage(file)}</span>
+      <span style="display:flex;flex-direction:column;min-width:0;flex:1">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${deps.esc(file?.name || 'arquivo')}</span>
+        ${subtitle}
+      </span>
+      ${action}
+    </div>`;
+        }
+
+        function isRenderableImageFile(file) {
+            const mimeType = String(file?.mimeType || file?.type || '').toLowerCase();
+            const name = String(file?.name || file?.path || '').toLowerCase();
+            return mimeType.startsWith('image/')
+                || /\.(png|jpe?g|webp|gif|svg)$/.test(name);
+        }
+
+        function renderInlineMessageImage(file) {
+            const src = file?.data
+                ? `data:${file.mimeType};base64,${file.data}`
+                : deps.buildMessageFileDownloadUrl(file);
+            if (!src) return renderMessageFile(file);
+            return `<img src="${src}" alt="${deps.esc(file?.name || 'Imagem gerada')}" loading="lazy">`;
+        }
+
         return {
             autoH,
             isChatNearBottom,
+            isRenderableImageFile,
+            renderInlineMessageImage,
+            renderMessageFile,
             updateScrollBottomButton,
             queueChatScrollToBottom,
             restoreChatScrollPosition,

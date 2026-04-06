@@ -6533,9 +6533,11 @@ return await createBackendApprovalRequest({
                 setChatStickToBottom: (next) => { chatStickToBottom = !!next; },
                 getChatScrollRaf: () => chatScrollRaf,
                 setChatScrollRaf: (next) => { chatScrollRaf = Number(next) || 0; },
+                buildMessageFileDownloadUrl,
                 conversationTitle,
                 conversationTs,
-                esc
+                esc,
+                fileIconForMessage
             });
 
             function renderSidebar() { return uiRenderRuntime.renderSidebar(); }
@@ -6744,39 +6746,11 @@ return await createBackendApprovalRequest({
             function sanitizeUploadName(name, fallback = 'arquivo') { return chatRuntime.sanitizeUploadName(name, fallback); }
             function persistPendingAttachments(items, folder) { return chatRuntime.persistPendingAttachments(items, folder); }
 
-            function renderMessageFile(file, role) {
-                const href = buildMessageFileDownloadUrl(file);
-                const action = href
-                    ? `<a class="cp" href="${href}" download onclick="event.stopPropagation()">Baixar</a>`
-                    : '';
-                const subtitle = file?.path
-                    ? `<span style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(file.path)}</span>`
-                    : '';
+            function renderMessageFile(file, role) { return uiRenderRuntime.renderMessageFile(file, role); }
 
-                return `<div class="file-preview">
-      <span class="file-icon">${fileIconForMessage(file)}</span>
-      <span style="display:flex;flex-direction:column;min-width:0;flex:1">
-        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(file?.name || 'arquivo')}</span>
-        ${subtitle}
-      </span>
-      ${action}
-    </div>`;
-            }
+            function isRenderableImageFile(file) { return uiRenderRuntime.isRenderableImageFile(file); }
 
-            function isRenderableImageFile(file) {
-                const mimeType = String(file?.mimeType || file?.type || '').toLowerCase();
-                const name = String(file?.name || file?.path || '').toLowerCase();
-                return mimeType.startsWith('image/')
-                    || /\.(png|jpe?g|webp|gif|svg)$/.test(name);
-            }
-
-            function renderInlineMessageImage(file) {
-                const src = file?.data
-                    ? `data:${file.mimeType};base64,${file.data}`
-                    : buildMessageFileDownloadUrl(file);
-                if (!src) return renderMessageFile(file);
-                return `<img src="${src}" alt="${esc(file?.name || 'Imagem gerada')}" loading="lazy">`;
-            }
+            function renderInlineMessageImage(file) { return uiRenderRuntime.renderInlineMessageImage(file); }
 
             function msgHTML(m, i) {
                 const t = new Date(m.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
