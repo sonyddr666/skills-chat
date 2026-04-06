@@ -306,10 +306,36 @@
             };
         }
 
+        function finalizeRenderChat(options) {
+            const {
+                prevScrollTop,
+                prevScrollHeight,
+                prevClientHeight,
+                shouldStickToBottom
+            } = options;
+
+            if (shouldStickToBottom) {
+                queueChatScrollToBottom(true);
+            } else {
+                restoreChatScrollPosition(prevScrollTop, prevScrollHeight, prevClientHeight);
+            }
+
+            updateScrollBottomButton();
+            deps.renderConversationApprovalBanner();
+            global.requestAnimationFrame(async () => {
+                await deps.renderMermaidBlocks();
+                if (shouldStickToBottom) queueChatScrollToBottom(true);
+                else updateScrollBottomButton();
+            });
+
+            setupChatObserver();
+        }
+
         return {
             autoH,
             cachedMsgHTML,
             cleanupChatObserver,
+            finalizeRenderChat,
             isChatNearBottom,
             isRenderableImageFile,
             renderInlineMessageImage,

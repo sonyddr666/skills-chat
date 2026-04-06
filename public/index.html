@@ -6540,6 +6540,7 @@ return await createBackendApprovalRequest({
                 getChatScrollRaf: () => chatScrollRaf,
                 getConversationMessages: (id) => conversationMessages(convs[id]),
                 getMsgHTMLCache: () => msgHTMLCache,
+                renderConversationApprovalBanner,
                 renderMermaidBlocks,
                 setChatScrollObserver: (next) => { chatScrollObserver = next; },
                 setChatScrollRaf: (next) => { chatScrollRaf = Number(next) || 0; },
@@ -6584,22 +6585,12 @@ return await createBackendApprovalRequest({
                 c.innerHTML = initialRender.html;
                 chatRenderedFrom = initialRender.from;
                 chatRenderedCount = initialRender.count;
-
-                if (shouldStickToBottom) {
-                    queueChatScrollToBottom(true);
-                } else {
-                    restoreChatScrollPosition(prevScrollTop, prevScrollHeight, prevClientHeight);
-                }
-                updateScrollBottomButton();
-                renderConversationApprovalBanner();
-                requestAnimationFrame(async () => {
-                    await renderMermaidBlocks();
-                    if (shouldStickToBottom) queueChatScrollToBottom(true);
-                    else updateScrollBottomButton();
+                uiRenderRuntime.finalizeRenderChat({
+                    prevScrollTop,
+                    prevScrollHeight,
+                    prevClientHeight,
+                    shouldStickToBottom
                 });
-
-                // Setup IntersectionObserver for auto-loading older messages
-                setupChatObserver();
             }
 
             function loadOlderMessages() { return uiRenderRuntime.loadOlderMessages(); }
