@@ -9,6 +9,7 @@ import { createAuthSession } from "./server/auth/session.js";
 import { createFilesystemModule } from "./server/filesystem/index.js";
 import { createHttpUtils } from "./server/http/utils.js";
 import { createStateModule } from "./server/state/index.js";
+import { createSystemPromptsModule } from "./server/system-prompts/index.js";
 
 const PORT = Number(process.env.PORT || 9321);
 const HOST = "0.0.0.0";
@@ -139,6 +140,9 @@ let fsEntryTypeFromStats;
 let fsHandleFsApi;
 let fsNormalizeRelativePath;
 let fsWorkspacePath;
+
+let systemPromptsHandleApi;
+let systemPromptsNormalizeScope;
 
 function normalizeLogin(value) {
   return String(value || "").trim().toLowerCase();
@@ -588,6 +592,31 @@ function sanitizeUserState(state) {
   parseJsonBody
 }));
 
+({
+  handleSystemPromptsApi: systemPromptsHandleApi,
+  normalizeSystemPromptScope: systemPromptsNormalizeScope
+} = createSystemPromptsModule({
+  readFile,
+  readdir,
+  writeFile,
+  unlink,
+  existsSync,
+  extname,
+  join,
+  sanitizeId,
+  ensureBaseDirs,
+  ensureUserDirs,
+  userSystemPromptsDir,
+  sharedSystemPromptsDir,
+  systemPromptsDir,
+  sharedSystemPromptFilePath,
+  privateSystemPromptFilePath,
+  legacySystemPromptFilePath,
+  sendJson,
+  parseJsonBody,
+  requireApprovedAction
+}));
+
 function buildApprovalStateSummary(item) {
   return {
     id: item.id,
@@ -673,7 +702,7 @@ function redactApprovalPayload(action, payload) {
     return {
       path: source.path ? fsNormalizeRelativePath(source.path) : undefined,
       id: source.id ? sanitizeId(source.id) : undefined,
-      scope: source.scope ? normalizeSystemPromptScope(source.scope) : undefined
+      scope: source.scope ? systemPromptsNormalizeScope(source.scope) : undefined
     };
   }
   if (safeAction === "ghost_search") {
@@ -1011,7 +1040,7 @@ function normalizeCredentialPayload(input) {
   };
 }
 
-function normalizeSystemPromptScope(inputScope, existingScope = "private") {
+function legacyNormalizeSystemPromptScope(inputScope, existingScope = "private") {
   const scope = String(inputScope || existingScope || "private").trim().toLowerCase();
   return scope === "shared" ? "shared" : "private";
 }
@@ -1020,7 +1049,7 @@ function systemPromptStorageKey(scope, id) {
   return `${scope}:${sanitizeId(id)}`;
 }
 
-async function loadSystemPromptFromFile(filePath, scope, fallbackOwner = null) {
+async function legacyLoadSystemPromptFromFile(filePath, scope, fallbackOwner = null) {
   const ext = extname(filePath).toLowerCase();
   let payload = null;
   if (ext === ".json") {
@@ -1034,7 +1063,7 @@ async function loadSystemPromptFromFile(filePath, scope, fallbackOwner = null) {
     };
   }
   if (!payload?.id || !payload?.name || !payload?.prompt) return null;
-  const normalizedScope = normalizeSystemPromptScope(payload.scope, scope);
+  const normalizedScope = legacyNormalizeSystemPromptScope(payload.scope, scope);
   const ownerUserId = sanitizeId(payload.owner_user_id || payload.created_by_id || fallbackOwner?.id || "");
   const ownerLogin = String(payload.owner_login || payload.created_by || fallbackOwner?.login || "").trim();
   return {
@@ -1049,23 +1078,23 @@ async function loadSystemPromptFromFile(filePath, scope, fallbackOwner = null) {
   };
 }
 
-async function readSystemPromptRecord(user, scope, id) {
+async function legacyReadSystemPromptRecord(user, scope, id) {
   const normalizedId = sanitizeId(id);
-  const normalizedScope = normalizeSystemPromptScope(scope);
+  const normalizedScope = legacyNormalizeSystemPromptScope(scope);
   if (!normalizedId) return null;
   const filePath = normalizedScope === "shared"
     ? sharedSystemPromptFilePath(normalizedId)
     : privateSystemPromptFilePath(user, normalizedId);
 
   if (existsSync(filePath)) {
-    const item = await loadSystemPromptFromFile(filePath, normalizedScope, normalizedScope === "private" ? user : null);
+    const item = await legacyLoadSystemPromptFromFile(filePath, normalizedScope, normalizedScope === "private" ? user : null);
     if (item) return { item, filePath };
   }
 
   if (normalizedScope === "shared") {
     const legacyPath = legacySystemPromptFilePath(normalizedId);
     if (existsSync(legacyPath)) {
-      const item = await loadSystemPromptFromFile(legacyPath, "shared");
+      const item = await legacyLoadSystemPromptFromFile(legacyPath, "shared");
       if (item) return { item, filePath: legacyPath };
     }
   }
@@ -1073,7 +1102,7 @@ async function readSystemPromptRecord(user, scope, id) {
   return null;
 }
 
-function assertSystemPromptPermission(user, existing) {
+function legacyAssertSystemPromptPermission(user, existing) {
   if (!existing) return;
   if (existing.owner_user_id && existing.owner_user_id !== user.id) {
     const error = new Error("Sem permissao para modificar este system prompt");
@@ -1082,11 +1111,11 @@ function assertSystemPromptPermission(user, existing) {
   }
 }
 
-function normalizeSystemPromptPayload(input, user, existing = null) {
+function legacyNormalizeSystemPromptPayload(input, user, existing = null) {
   if (!input || typeof input !== "object") {
     throw new Error("Invalid system prompt payload");
   }
-  const scope = normalizeSystemPromptScope(input.scope, existing?.scope || "private");
+  const scope = legacyNormalizeSystemPromptScope(input.scope, existing?.scope || "private");
   const name = String(input.name || input.id || "").trim();
   const prompt = String(input.prompt || input.content || "").trim();
   const id = sanitizeId(input.id || name);
@@ -1112,7 +1141,7 @@ function normalizeSystemPromptPayload(input, user, existing = null) {
   };
 }
 
-async function listSystemPrompts(user) {
+async function legacyListSystemPrompts(user) {
   await ensureUserDirs(user);
   const items = [];
   const seen = new Set();
@@ -1128,7 +1157,7 @@ async function listSystemPrompts(user) {
       if (!entry.isFile()) continue;
       if (source.legacyRoot && entry.name.startsWith("_")) continue;
       try {
-        const item = await loadSystemPromptFromFile(join(source.dir, entry.name), source.scope, source.fallbackOwner);
+        const item = await legacyLoadSystemPromptFromFile(join(source.dir, entry.name), source.scope, source.fallbackOwner);
         if (!item) continue;
         const dedupeKey = item.storage_key || systemPromptStorageKey(item.scope, item.id);
         if (seen.has(dedupeKey)) continue;
@@ -2710,7 +2739,7 @@ async function handleSkillsApi(req, res, url, user) {
   sendJson(res, 405, { error: "Method not allowed" });
 }
 
-async function handleSystemPromptsApi(req, res, url, user) {
+async function legacyHandleSystemPromptsApi(req, res, url, user) {
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
@@ -2724,17 +2753,17 @@ async function handleSystemPromptsApi(req, res, url, user) {
   await ensureBaseDirs();
 
   if (req.method === "GET" && url.pathname === "/api/system-prompts") {
-    sendJson(res, 200, { items: await listSystemPrompts(user) });
+    sendJson(res, 200, { items: await legacyListSystemPrompts(user) });
     return;
   }
 
   if (req.method === "POST" && url.pathname === "/api/system-prompts") {
     const payload = await parseJsonBody(req);
-    const scope = normalizeSystemPromptScope(payload.scope);
-    const existingRecord = await readSystemPromptRecord(user, scope, payload.id || payload.name);
+    const scope = legacyNormalizeSystemPromptScope(payload.scope);
+    const existingRecord = await legacyReadSystemPromptRecord(user, scope, payload.id || payload.name);
     const existing = existingRecord?.item || null;
-    assertSystemPromptPermission(user, existing);
-    const next = normalizeSystemPromptPayload(payload, user, existing);
+    legacyAssertSystemPromptPermission(user, existing);
+    const next = legacyNormalizeSystemPromptPayload(payload, user, existing);
     const filePath = scope === "shared"
       ? sharedSystemPromptFilePath(next.id)
       : privateSystemPromptFilePath(user, next.id);
@@ -2749,18 +2778,18 @@ async function handleSystemPromptsApi(req, res, url, user) {
   if (req.method === "DELETE" && url.pathname.startsWith("/api/system-prompts/")) {
     const ref = String(url.pathname.slice("/api/system-prompts/".length) || "");
     const [rawScope, rawId] = ref.includes("/") ? ref.split("/", 2) : ["private", ref];
-    const scope = normalizeSystemPromptScope(rawScope);
+    const scope = legacyNormalizeSystemPromptScope(rawScope);
     const id = sanitizeId(rawId);
     if (!id) {
       sendJson(res, 400, { error: "System prompt id is required" });
       return;
     }
-    const existingRecord = await readSystemPromptRecord(user, scope, id);
+    const existingRecord = await legacyReadSystemPromptRecord(user, scope, id);
     if (!existingRecord?.item || !existingRecord?.filePath) {
       sendJson(res, 404, { error: "System prompt not found" });
       return;
     }
-    assertSystemPromptPermission(user, existingRecord.item);
+    legacyAssertSystemPromptPermission(user, existingRecord.item);
     await requireApprovedAction(user, url.searchParams.get("approval_id"), "system_prompt_delete", {
       route: "/api/system-prompts/:scope/:id",
       id,
@@ -3392,7 +3421,7 @@ const server = createServer(async (req, res) => {
         return;
       }
       if (url.pathname === "/api/system-prompts" || url.pathname.startsWith("/api/system-prompts/")) {
-        await handleSystemPromptsApi(req, res, url, authUser);
+        await systemPromptsHandleApi(req, res, url, authUser);
         return;
       }
       if (url.pathname.startsWith("/api/fs/")) {
