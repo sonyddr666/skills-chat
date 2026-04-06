@@ -22,6 +22,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="./app/storage-sync.js"></script>
     <script src="./app/jobs.js"></script>
+    <script src="./app/chat.js"></script>
     <script src="./app/tts.js"></script>
     <script src="./account.js"></script>
     <script src="./app/api-client.js"></script>
@@ -5363,6 +5364,9 @@ return await createBackendApprovalRequest({
             let generationSeq = 0;
             let pendingImages = [];
             let systemPromptPresets = [];
+            const chatRuntime = window.SkillFlowChat.init({
+                generationControllers
+            });
             const ttsRuntime = window.SkillFlowTts.init({
                 storage: storageSync,
                 toast,
@@ -6692,59 +6696,8 @@ return await createBackendApprovalRequest({
                 renderImagePreview();
             }
 
-            function sanitizeUploadName(name, fallback = 'arquivo') {
-                const cleaned = String(name || fallback)
-                    .replace(/[\\/:*?"<>|]+/g, '_')
-                    .replace(/\s+/g, '-')
-                    .replace(/-+/g, '-')
-                    .replace(/^-+|-+$/g, '')
-                    .slice(0, 120);
-                return cleaned || fallback;
-            }
-
-            async function persistPendingAttachments(items, folder) {
-                const now = new Date();
-                const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-                const persisted = [];
-
-                for (let index = 0; index < items.length; index += 1) {
-                    const item = items[index];
-                    if (!item?.data) {
-                        persisted.push(item);
-                        continue;
-                    }
-
-                    const prefix = `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
-                    const fileName = sanitizeUploadName(item.name || `${folder}-${prefix}`);
-                    const path = `.uploads/${stamp}/${folder}/${prefix}-${fileName}`;
-                    const res = await fetch('/api/fs/write', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            path,
-                            content: item.data,
-                            encoding: 'base64',
-                            create_dirs: true
-                        })
-                    });
-
-                    let data = null;
-                    try { data = await res.json(); } catch (_) { }
-                    if (!res.ok || !data?.ok) {
-                        throw new Error(data?.error || `Falha ao salvar ${fileName}`);
-                    }
-
-                    persisted.push({
-                        name: item.name || fileName,
-                        mimeType: item.mimeType || '',
-                        path: data.path,
-                        downloadUrl: '/api/fs/download?path=' + encodeURIComponent(data.path),
-                        data: item.data
-                    });
-                }
-
-                return persisted;
-            }
+            function sanitizeUploadName(name, fallback = 'arquivo') { return chatRuntime.sanitizeUploadName(name, fallback); }
+            function persistPendingAttachments(items, folder) { return chatRuntime.persistPendingAttachments(items, folder); }
 
             function renderMessageFile(file, role) {
                 const href = buildMessageFileDownloadUrl(file);
@@ -7563,14 +7516,7 @@ return await createBackendApprovalRequest({
                 }
             }
 
-            function stop() {
-                generationControllers.forEach(controller => {
-                    try {
-                        controller._stopReason = 'manual';
-                        controller.abort();
-                    } catch (_) { }
-                });
-            }
+            function stop() { return chatRuntime.stop(); }
 
             // â”€ EVENTOS â”€
             document.getElementById('msg').addEventListener('keydown', e => {
