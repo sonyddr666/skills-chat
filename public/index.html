@@ -3453,52 +3453,9 @@
                 ) || null;
             }
 
-            function renderConversationApprovalBanner() {
-                const banner = document.getElementById('conversation-approval-banner');
-                const meta = document.getElementById('conversation-approval-meta');
-                if (!banner || !meta) return;
-                const grant = currentConversationGrant();
-                if (!grant) {
-                    banner.classList.remove('on');
-                    return;
-                }
-                const allowed = Array.isArray(grant.allowed_actions) ? grant.allowed_actions.join(', ') : '*';
-                meta.textContent = `Valido ate ${formatApprovalExpiry(grant.expires_at)}. Acoes: ${allowed}. Usos: ${grant.used_count || 0}.`;
-                banner.classList.add('on');
-            }
+            function renderConversationApprovalBanner() { return uiRenderRuntime.renderConversationApprovalBanner(); }
 
-            function renderApprovalsPanel() {
-                const list = document.getElementById('approvals-list');
-                if (!list) return;
-                const currentConversationId = String(activeId || '').trim();
-                if (!approvalItems.length) {
-                    list.innerHTML = `<div class="approval-item"><div class="approval-item-title">Nenhum approval registrado</div><div class="approval-item-meta">Quando uma acao sensivel precisar de autorizacao, ela aparecera aqui.</div></div>`;
-                    return;
-                }
-                list.innerHTML = approvalItems.map(item => {
-                    const isCurrentConversation = currentConversationId && item?.conversation_id === currentConversationId;
-                    const canRevoke = item?.kind === 'conversation_grant' && ['approved', 'pending'].includes(String(item?.status || '').toLowerCase());
-                    const allowed = Array.isArray(item?.allowed_actions) ? item.allowed_actions.join(', ') : (item?.action || '');
-                    return `<div class="approval-item ${isCurrentConversation ? 'current-conv' : ''}">
-  <div class="approval-item-head">
-    <div>
-      <div class="approval-item-title">${esc(item.kind === 'conversation_grant' ? 'Grant da conversa' : item.action || 'Approval')}</div>
-      <div class="approval-item-meta">
-        <span class="approval-pill ${esc(String(item.status || '').toLowerCase())}">${esc(approvalStatusLabel(item.status))}</span>
-        <span>${esc(item.id || '')}</span>
-        ${item.conversation_id ? `<span>conversa ${esc(item.conversation_id)}</span>` : ''}
-      </div>
-    </div>
-    <div class="approval-item-meta">${esc(item.risk || 'medio')}</div>
-  </div>
-  <div class="approval-item-meta">${esc(item.reason || '')}</div>
-  <div class="approval-item-meta">Acoes: ${esc(allowed || item.action || '')}</div>
-  <div class="approval-item-meta">Expira em: ${esc(formatApprovalExpiry(item.expires_at))}</div>
-  <div class="approval-item-meta">Usos: ${esc(String(item.used_count || 0))}</div>
-  ${canRevoke ? `<div class="approval-item-actions"><button class="approval-mini-btn" type="button" onclick="revokeApprovalById('${esc(item.id)}')">Revogar</button></div>` : ''}
-</div>`;
-                }).join('');
-            }
+            function renderApprovalsPanel() { return uiRenderRuntime.renderApprovalsPanel(); }
 
             async function refreshApprovalsPanel() {
                 await refreshConversationGrantCache();
@@ -6531,6 +6488,9 @@ return await createBackendApprovalRequest({
                 getPendingFiles: () => pendingFiles,
                 setPendingImages: (next) => { pendingImages = Array.isArray(next) ? next : []; },
                 setPendingFiles: (next) => { pendingFiles = Array.isArray(next) ? next : []; },
+                getApprovalItems: () => approvalItems,
+                getCurrentConversationGrant: () => currentConversationGrant(),
+                getCurrentConversationId: () => activeId,
                 getConversations: () => convs,
                 getActiveId: () => activeId,
                 getChatPageSize: () => CHAT_PAGE_SIZE,
@@ -6552,10 +6512,12 @@ return await createBackendApprovalRequest({
                 setChatScrollObserver: (next) => { chatScrollObserver = next; },
                 setChatScrollRaf: (next) => { chatScrollRaf = Number(next) || 0; },
                 buildMessageFileDownloadUrl,
+                approvalStatusLabel,
                 conversationTitle,
                 conversationTs,
                 esc,
                 fileIconForMessage,
+                formatApprovalExpiry,
                 renderMarkdown,
                 renderMessageTrace
             });

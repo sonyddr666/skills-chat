@@ -69,6 +69,54 @@
             renderImagePreview();
         }
 
+        function renderConversationApprovalBanner() {
+            const banner = global.document.getElementById('conversation-approval-banner');
+            const meta = global.document.getElementById('conversation-approval-meta');
+            if (!banner || !meta) return;
+            const grant = deps.getCurrentConversationGrant();
+            if (!grant) {
+                banner.classList.remove('on');
+                return;
+            }
+            const allowed = Array.isArray(grant.allowed_actions) ? grant.allowed_actions.join(', ') : '*';
+            meta.textContent = `Valido ate ${deps.formatApprovalExpiry(grant.expires_at)}. Acoes: ${allowed}. Usos: ${grant.used_count || 0}.`;
+            banner.classList.add('on');
+        }
+
+        function renderApprovalsPanel() {
+            const list = global.document.getElementById('approvals-list');
+            if (!list) return;
+            const currentConversationId = String(deps.getCurrentConversationId() || '').trim();
+            const approvalItems = deps.getApprovalItems();
+            if (!approvalItems.length) {
+                list.innerHTML = `<div class="approval-item"><div class="approval-item-title">Nenhum approval registrado</div><div class="approval-item-meta">Quando uma acao sensivel precisar de autorizacao, ela aparecera aqui.</div></div>`;
+                return;
+            }
+            list.innerHTML = approvalItems.map(item => {
+                const isCurrentConversation = currentConversationId && item?.conversation_id === currentConversationId;
+                const canRevoke = item?.kind === 'conversation_grant' && ['approved', 'pending'].includes(String(item?.status || '').toLowerCase());
+                const allowed = Array.isArray(item?.allowed_actions) ? item.allowed_actions.join(', ') : (item?.action || '');
+                return `<div class="approval-item ${isCurrentConversation ? 'current-conv' : ''}">
+  <div class="approval-item-head">
+    <div>
+      <div class="approval-item-title">${deps.esc(item.kind === 'conversation_grant' ? 'Grant da conversa' : item.action || 'Approval')}</div>
+      <div class="approval-item-meta">
+        <span class="approval-pill ${deps.esc(String(item.status || '').toLowerCase())}">${deps.esc(deps.approvalStatusLabel(item.status))}</span>
+        <span>${deps.esc(item.id || '')}</span>
+        ${item.conversation_id ? `<span>conversa ${deps.esc(item.conversation_id)}</span>` : ''}
+      </div>
+    </div>
+    <div class="approval-item-meta">${deps.esc(item.risk || 'medio')}</div>
+  </div>
+  <div class="approval-item-meta">${deps.esc(item.reason || '')}</div>
+  <div class="approval-item-meta">Acoes: ${deps.esc(allowed || item.action || '')}</div>
+  <div class="approval-item-meta">Expira em: ${deps.esc(deps.formatApprovalExpiry(item.expires_at))}</div>
+  <div class="approval-item-meta">Usos: ${deps.esc(String(item.used_count || 0))}</div>
+  ${canRevoke ? `<div class="approval-item-actions"><button class="approval-mini-btn" type="button" onclick="revokeApprovalById('${deps.esc(item.id)}')">Revogar</button></div>` : ''}
+</div>`;
+            }).join('');
+        }
+
         function isChatNearBottom(chatEl, threshold = 180) {
             if (!chatEl) return true;
             return (chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight) <= threshold;
@@ -483,6 +531,8 @@
             finalizeRenderChat,
             isChatNearBottom,
             isRenderableImageFile,
+            renderApprovalsPanel,
+            renderConversationApprovalBanner,
             cancelEdit,
             removeFile,
             removeImage,
