@@ -275,6 +275,37 @@
             deps.setChatScrollObserver(observer);
         }
 
+        function renderEmptyChat() {
+            return `<div id="empty">
+      <div class="logo">✦</div>
+      <h3>SkillFlow Chat OS</h3>
+      <p>Chat real com LLM, STT, TTS, skills, plugins e function calling. Configure a API Key, escolha o modelo e trabalhe por conversa, projeto ou skill pack.</p>
+      <div class="empty-features">
+        <span>Function Calling</span>
+        <span>Skills por projeto</span>
+        <span>TTS + Live Voice</span>
+        <span>Logs e approvals</span>
+      </div>
+    </div>`;
+        }
+
+        function renderInitialChatSlice(activeId, messages) {
+            const total = messages.length;
+            const from = Math.max(0, total - deps.getChatPageSize());
+            const slice = messages.slice(from);
+            const html = slice.map((msg, i) => cachedMsgHTML(activeId, msg, from + i)).join('');
+            const hasOlder = from > 0;
+            const sentinel = hasOlder
+                ? `<div id="chat-load-more" style="text-align:center;padding:12px;color:var(--muted);font-size:12px;cursor:pointer" onclick="loadOlderMessages()">⬑ Carregar mensagens anteriores (${from} restantes)</div>`
+                : '';
+
+            return {
+                from,
+                html: sentinel + html,
+                count: slice.length
+            };
+        }
+
         return {
             autoH,
             cachedMsgHTML,
@@ -288,6 +319,8 @@
             renderMessageFile,
             renderMessageMeta,
             renderMessageShell,
+            renderEmptyChat,
+            renderInitialChatSlice,
             loadOlderMessages,
             msgCacheKey,
             setupChatObserver,

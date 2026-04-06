@@ -6573,40 +6573,17 @@ return await createBackendApprovalRequest({
                 const prevClientHeight = c?.clientHeight || 0;
                 const shouldStickToBottom = !!forceScrollToBottom || chatStickToBottom || isChatNearBottom(c);
                 if (!activeId || !messages.length) {
-                    c.innerHTML = `<div id="empty">
-      <div class="logo">âœ¦</div>
-      <h3>SkillFlow Chat OS</h3>
-      <p>Chat real com LLM, STT, TTS, skills, plugins e function calling. Configure a API Key, escolha o modelo e trabalhe por conversa, projeto ou skill pack.</p>
-      <div class="empty-features">
-        <span>Function Calling</span>
-        <span>Skills por projeto</span>
-        <span>TTS + Live Voice</span>
-        <span>Logs e approvals</span>
-      </div>
-    </div>`;
+                    c.innerHTML = uiRenderRuntime.renderEmptyChat();
                     chatRenderedFrom = 0;
                     chatRenderedCount = 0;
                     cleanupChatObserver();
                     renderConversationApprovalBanner();
                     return;
                 }
-
-                // Render only last CHAT_PAGE_SIZE messages initially
-                const total = messages.length;
-                const from = Math.max(0, total - CHAT_PAGE_SIZE);
-                const slice = messages.slice(from);
-
-                const html = slice.map((m, i) => cachedMsgHTML(activeId, m, from + i)).join('');
-
-                // Add sentinel for loading older messages
-                const hasOlder = from > 0;
-                const sentinel = hasOlder
-                    ? `<div id="chat-load-more" style="text-align:center;padding:12px;color:var(--muted);font-size:12px;cursor:pointer" onclick="loadOlderMessages()">â¬† Carregar mensagens anteriores (${from} restantes)</div>`
-                    : '';
-
-                c.innerHTML = sentinel + html;
-                chatRenderedFrom = from;
-                chatRenderedCount = slice.length;
+                const initialRender = uiRenderRuntime.renderInitialChatSlice(activeId, messages);
+                c.innerHTML = initialRender.html;
+                chatRenderedFrom = initialRender.from;
+                chatRenderedCount = initialRender.count;
 
                 if (shouldStickToBottom) {
                     queueChatScrollToBottom(true);
