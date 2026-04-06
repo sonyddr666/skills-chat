@@ -138,6 +138,166 @@
             return { handled: true };
         }
 
+        async function prepareStandardSend(context) {
+            const { conversationId, input, text, model } = context;
+            const usingCodex = deps.isCodexModel(model);
+            const provider = usingCodex ? 'codex' : 'gemini';
+            const credentialInput = global.document.getElementById('api-in');
+            const rawCredential = credentialInput?.value?.trim() || '';
+
+            try {
+                if (rawCredential) await deps.saveProviderCredential(provider, rawCredential);
+            } catch (error) {
+                deps.toast('Erro ao salvar credencial: ' + (error?.message || error));
+                return { blocked: true };
+            }
+
+            if (credentialInput && rawCredential) credentialInput.value = '';
+            if (!deps.providerConfigured(provider)) {
+                deps.toast(usingCodex ? 'Configure a credencial do Codex no servidor.' : 'Configure a API key do Gemini no servidor.');
+                return { blocked: true };
+            }
+
+            const think = global.document.getElementById('think-lvl')?.value || '';
+            const effectiveThink = usingCodex ? deps.normalizeCodexReasoning(think) : think;
+            const isThinking = (deps.supportsThinking(model) && !!think) || (usingCodex && !!effectiveThink);
+            const temp = parseFloat(global.document.getElementById('temp')?.value || '0');
+            const topp = parseFloat(global.document.getElementById('topp')?.value || '0');
+            const topk = parseInt(global.document.getElementById('topk')?.value || '0', 10);
+            const maxt = parseInt(global.document.getElementById('maxt')?.value || '0', 10);
+            const sysp = global.document.getElementById('sysp')?.value?.trim() || '';
+
+            input.value = '';
+            deps.autoH(input);
+
+            let imgsToSave = [...deps.getPendingImages()];
+            let filesToSave = [...deps.getPendingFiles()];
+            deps.setPendingImages([]);
+            deps.setPendingFiles([]);
+            deps.renderImagePreview();
+
+            const convs = deps.getConversations();
+            const msgData = { id: deps.newMessageId('msg'), role: 'user', text, ts: Date.now() };
+            if (imgsToSave.length) msgData.imgs = imgsToSave.map((item) => ({ ...item }));
+            if (filesToSave.length) msgData.files = filesToSave.map((item) => ({ ...item }));
+            convs[conversationId].msgs.push(msgData);
+            convs[conversationId].ts = msgData.ts;
+            if (convs[conversationId].msgs.length === 1) {
+                convs[conversationId].title = text
+                    ? text.slice(0, 48) + (text.length > 48 ? '…' : '')
+                    : (msgData.imgs?.length ? 'Imagem enviada' : msgData.files?.[0]?.name || 'Arquivo enviado');
+            }
+
+            const modelMessageId = deps.newMessageId('msg');
+            let mi = convs[conversationId].msgs.length;
+            convs[conversationId].msgs.push({
+                id: modelMessageId,
+                role: 'model',
+                text: '',
+                ts: Date.now(),
+                model,
+                think: isThinking ? effectiveThink : undefined,
+                trace: isThinking
+                    ? [deps.createTraceStep('thinking', { title: 'Thinking', meta: `level=${effectiveThink}` })]
+                    : [],
+                chatJob: {
+                    provider: usingCodex ? 'codex' : 'gemini',
+                    status: 'preparing',
+                    recoverable: true,
+                    resumeState: usingCodex
+                        ? {
+                            provider: 'codex',
+                            model,
+                            reasoning: effectiveThink,
+                            instructions: sysp
+                        }
+                        : {
+                            provider: 'gemini',
+                            model,
+                            think,
+                            temperature: temp,
+                            topP: topp,
+                            topK: topk,
+                            maxOutputTokens: maxt,
+                            systemPrompt: sysp
+                        },
+                    error: null
+                }
+            });
+
+            convs[conversationId].ts = Date.now();
+            deps.saveConvs();
+            deps.renderSidebar();
+            deps.renderChat(true);
+            deps.scrollEnd(true);
+
+            const refreshModelIndex = () => {
+                mi = deps.findConversationMessageIndex(conversationId, modelMessageId);
+                return mi;
+            };
+            const getCurrentModelMsg = () => {
+                const currentIndex = refreshModelIndex();
+                return currentIndex >= 0 ? deps.getConversationMessage(conversationId, currentIndex) : null;
+            };
+            const getCurrentModelBubble = () => {
+                const currentIndex = refreshModelIndex();
+                return currentIndex >= 0 ? global.document.getElementById(`bb${currentIndex}`) : null;
+            };
+            const getCurrentModelMeta = () => {
+                const currentIndex = refreshModelIndex();
+                return currentIndex >= 0 ? global.document.getElementById(`mt${currentIndex}`) : null;
+            };
+            const getCurrentHistoryMessages = () => {
+                const currentIndex = refreshModelIndex();
+                const msgs = deps.conversationMessages(deps.getConversations()?.[conversationId]);
+                return currentIndex >= 0 ? msgs.slice(0, currentIndex) : msgs;
+            };
+            const updateCurrentModelChatJob = (patch, saveNow = true) => {
+                const currentIndex = refreshModelIndex();
+                if (currentIndex < 0) return null;
+                return deps.updateMessageChatJob(conversationId, currentIndex, patch, saveNow);
+            };
+
+            const requestId = deps.nextGenerationSeq();
+            const requestCtrl = new AbortController();
+            deps.generationControllers.set(requestId, requestCtrl);
+            deps.refreshGenerationUi();
+
+            const thinkTimeout = isThinking ? 180000 : 60000;
+            const autoAbort = global.setTimeout(() => {
+                if (deps.generationControllers.has(requestId)) {
+                    requestCtrl._stopReason = 'timeout';
+                    requestCtrl.abort();
+                }
+            }, thinkTimeout);
+
+            return {
+                blocked: false,
+                usingCodex,
+                provider,
+                think,
+                effectiveThink,
+                isThinking,
+                temp,
+                topp,
+                topk,
+                maxt,
+                sysp,
+                msgData,
+                imgsToSave,
+                filesToSave,
+                requestId,
+                requestCtrl,
+                autoAbort,
+                refreshModelIndex,
+                getCurrentModelMsg,
+                getCurrentModelBubble,
+                getCurrentModelMeta,
+                getCurrentHistoryMessages,
+                updateCurrentModelChatJob
+            };
+        }
+
         function stop() {
             deps.generationControllers.forEach((controller) => {
                 try {
@@ -151,6 +311,7 @@
             sanitizeUploadName,
             persistPendingAttachments,
             handleLiveSend,
+            prepareStandardSend,
             stop
         };
     }

@@ -5377,10 +5377,23 @@ return await createBackendApprovalRequest({
                 saveConvs,
                 renderSidebar,
                 renderChat,
+                scrollEnd,
                 getRuntimeConfig: () => runtimeConfig,
                 getGeminiLive: () => geminiLive,
                 setLiveMode: (next) => { liveMode = !!next; },
-                newMessageId
+                newMessageId,
+                isCodexModel,
+                saveProviderCredential,
+                providerConfigured,
+                normalizeCodexReasoning,
+                supportsThinking,
+                createTraceStep,
+                findConversationMessageIndex,
+                getConversationMessage,
+                conversationMessages,
+                updateMessageChatJob,
+                nextGenerationSeq: () => ++generationSeq,
+                refreshGenerationUi
             });
             const ttsRuntime = window.SkillFlowTts.init({
                 storage: storageSync,
@@ -6961,128 +6974,35 @@ return await createBackendApprovalRequest({
                     return;
                 }
 
-                const usingCodex = isCodexModel(model);
-                const provider = usingCodex ? 'codex' : 'gemini';
-                const credentialInput = document.getElementById('api-in');
-                const rawCredential = credentialInput?.value?.trim() || '';
-                try {
-                    if (rawCredential) await saveProviderCredential(provider, rawCredential);
-                } catch (err) {
-                    toast('Erro ao salvar credencial: ' + (err?.message || err));
-                    return;
-                }
-
-                if (credentialInput && rawCredential) credentialInput.value = '';
-                if (!providerConfigured(provider)) {
-                    toast(usingCodex ? 'Configure a credencial do Codex no servidor.' : 'Configure a API key do Gemini no servidor.');
-                    return;
-                }
-
-                const think = document.getElementById('think-lvl').value;
-                const effectiveThink = usingCodex ? normalizeCodexReasoning(think) : think;
-                const isThinking = (supportsThinking(model) && !!think) || (usingCodex && !!effectiveThink);
-                const temp = parseFloat(document.getElementById('temp').value);
-                const topp = parseFloat(document.getElementById('topp').value);
-                const topk = parseInt(document.getElementById('topk').value);
-                const maxt = parseInt(document.getElementById('maxt').value);
-                const sysp = document.getElementById('sysp').value.trim();
-
-                input.value = ''; autoH(input);
-
-                let imgsToSave = [...pendingImages];
-                let filesToSave = [...pendingFiles];
-                pendingImages = [];
-                pendingFiles = [];
-                renderImagePreview();
-
-                const msgData = { id: newMessageId('msg'), role: 'user', text, ts: Date.now() };
-                if (imgsToSave.length) msgData.imgs = imgsToSave.map(item => ({ ...item }));
-                if (filesToSave.length) msgData.files = filesToSave.map(item => ({ ...item }));
-                convs[conversationId].msgs.push(msgData);
-                convs[conversationId].ts = msgData.ts;
-                if (convs[conversationId].msgs.length === 1)
-                    convs[conversationId].title = text ? text.slice(0, 48) + (text.length > 48 ? 'â€¦' : '') : (msgData.imgs?.length ? 'Imagem enviada' : msgData.files?.[0]?.name || 'Arquivo enviado');
-                const modelMessageId = newMessageId('msg');
-                let mi = convs[conversationId].msgs.length;
-                convs[conversationId].msgs.push({
-                    id: modelMessageId,
-                    role: 'model',
-                    text: '',
-                    ts: Date.now(),
-                    model,
-                    think: isThinking ? effectiveThink : undefined,
-                    trace: isThinking
-                        ? [createTraceStep('thinking', { title: 'Thinking', meta: `level=${effectiveThink}` })]
-                        : [],
-                    chatJob: {
-                        provider: usingCodex ? 'codex' : 'gemini',
-                        status: 'preparing',
-                        recoverable: true,
-                        resumeState: usingCodex
-                            ? {
-                                provider: 'codex',
-                                model,
-                                reasoning: effectiveThink,
-                                instructions: sysp
-                            }
-                            : {
-                                provider: 'gemini',
-                                model,
-                                think,
-                                temperature: temp,
-                                topP: topp,
-                                topK: topk,
-                                maxOutputTokens: maxt,
-                                systemPrompt: sysp
-                            },
-                        error: null
-                    }
+                const prepared = await chatRuntime.prepareStandardSend({
+                    conversationId,
+                    input,
+                    text,
+                    model
                 });
-                convs[conversationId].ts = Date.now();
-                saveConvs();
-                renderSidebar();
-                renderChat(true);
-                scrollEnd(true);
+                if (!prepared || prepared.blocked) return;
 
-                const refreshModelIndex = () => {
-                    mi = findConversationMessageIndex(conversationId, modelMessageId);
-                    return mi;
-                };
-                const getCurrentModelMsg = () => {
-                    const currentIndex = refreshModelIndex();
-                    return currentIndex >= 0 ? getConversationMessage(conversationId, currentIndex) : null;
-                };
-                const getCurrentModelBubble = () => {
-                    const currentIndex = refreshModelIndex();
-                    return currentIndex >= 0 ? document.getElementById(`bb${currentIndex}`) : null;
-                };
-                const getCurrentModelMeta = () => {
-                    const currentIndex = refreshModelIndex();
-                    return currentIndex >= 0 ? document.getElementById(`mt${currentIndex}`) : null;
-                };
-                const getCurrentHistoryMessages = () => {
-                    const currentIndex = refreshModelIndex();
-                    const msgs = conversationMessages(convs?.[conversationId]);
-                    return currentIndex >= 0 ? msgs.slice(0, currentIndex) : msgs;
-                };
-                const updateCurrentModelChatJob = (patch, saveNow = true) => {
-                    const currentIndex = refreshModelIndex();
-                    if (currentIndex < 0) return null;
-                    return updateMessageChatJob(conversationId, currentIndex, patch, saveNow);
-                };
-
-                const requestId = ++generationSeq;
-                const requestCtrl = new AbortController();
-                generationControllers.set(requestId, requestCtrl);
-                refreshGenerationUi();
-
-                const thinkTimeout = isThinking ? 180000 : 60000;
-                const autoAbort = setTimeout(() => {
-                    if (generationControllers.has(requestId)) {
-                        requestCtrl._stopReason = 'timeout';
-                        requestCtrl.abort();
-                    }
-                }, thinkTimeout);
+                const {
+                    usingCodex,
+                    think,
+                    effectiveThink,
+                    temp,
+                    topp,
+                    topk,
+                    maxt,
+                    sysp,
+                    msgData,
+                    requestId,
+                    requestCtrl,
+                    autoAbort,
+                    refreshModelIndex,
+                    getCurrentModelMsg,
+                    getCurrentModelBubble,
+                    getCurrentModelMeta,
+                    getCurrentHistoryMessages,
+                    updateCurrentModelChatJob
+                } = prepared;
+                let { imgsToSave, filesToSave } = prepared;
                 try {
                     imgsToSave = await persistPendingAttachments(imgsToSave, 'images');
                     filesToSave = await persistPendingAttachments(filesToSave, 'files');
