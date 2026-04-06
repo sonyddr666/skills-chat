@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createAuthSession } from "./server/auth/session.js";
 import { createApprovalsModule } from "./server/approvals/index.js";
 import { createCodexModule } from "./server/chat/codex.js";
+import { createGeminiModule } from "./server/chat/gemini.js";
 import { createExecModule } from "./server/exec/index.js";
 import { createFilesystemModule } from "./server/filesystem/index.js";
 import { createHttpUtils } from "./server/http/utils.js";
@@ -154,6 +155,8 @@ let approvalsRequireApprovedAction;
 let execHandleApi;
 let codexBuildContextMessages;
 let codexRunChat;
+let geminiProxyStream;
+let geminiRunChatJob;
 
 function normalizeLogin(value) {
   return String(value || "").trim().toLowerCase();
@@ -1377,6 +1380,19 @@ function normalizeConversationId(value) {
   nowMs
 }));
 
+({
+  proxyGeminiStream: geminiProxyStream,
+  runGeminiChatJob: geminiRunChatJob
+} = createGeminiModule({
+  fetch,
+  Buffer,
+  geminiApiBaseUrl: GEMINI_API_BASE_URL,
+  processEnvGeminiApiKey: process.env.GEMINI_API_KEY,
+  createWriteStream,
+  writeFile,
+  mkdir
+}));
+
 function normalizeExecEnv(input) {
   if (input === undefined || input === null) return {};
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -2415,7 +2431,7 @@ async function legacyRunCodexChat(payload) {
   };
 }
 
-async function proxyGeminiStream(res, payload) {
+async function legacyProxyGeminiStream(res, payload) {
   const model = String(payload.model || "").trim();
   if (!model) {
     const error = new Error("model ausente.");
@@ -2469,7 +2485,7 @@ async function proxyGeminiStream(res, payload) {
   res.end();
 }
 
-async function runGeminiChatJob(user, jobId, payload) {
+async function legacyRunGeminiChatJob(user, jobId, payload) {
   const paths = chatJobPaths(user, jobId);
   const apiKey = String(process.env.GEMINI_API_KEY || payload.api_key || "").trim();
   if (!apiKey) {
@@ -2560,7 +2576,7 @@ async function executeChatJob(user, jobId, payload) {
   activeChatJobs.set(jobId, { startedAt: Date.now(), provider: payload.provider });
   try {
     if (payload.provider === "gemini") {
-      await runGeminiChatJob(user, jobId, payload);
+      await geminiRunChatJob(user, jobId, payload, chatJobPaths);
     } else if (payload.provider === "codex") {
       await runCodexChatJob(user, jobId, payload);
     } else {
@@ -2650,7 +2666,7 @@ async function handleChatApi(req, res, user) {
   const provider = normalized.provider;
 
   if (provider === "gemini") {
-    await proxyGeminiStream(res, normalized);
+    await geminiProxyStream(res, normalized);
     return;
   }
 
