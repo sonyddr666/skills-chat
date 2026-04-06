@@ -308,55 +308,6 @@ async function createUser(login, password) {
   return user;
 }
 
-async function startSession(user) {
-  const token = randomBytes(24).toString("hex");
-  const sessions = await loadSessionStore();
-  sessions[token] = {
-    userId: user.id,
-    createdAt: Date.now(),
-    expiresAt: Date.now() + SESSION_TTL_SECONDS * 1000
-  };
-  await persistSessionStore(sessions);
-  return token;
-}
-
-async function destroySession(token) {
-  if (!token) return;
-  const sessions = await loadSessionStore();
-  if (!sessions[token]) return;
-  delete sessions[token];
-  await persistSessionStore(sessions);
-}
-
-async function getAuthenticatedUser(req) {
-  const cookies = parseCookies(req);
-  const token = cookies.sf_session;
-  if (!token) return null;
-
-  const sessions = await loadSessionStore();
-  const session = sessions[token];
-  if (!session || session.expiresAt < Date.now()) {
-    if (session) {
-      delete sessions[token];
-      await persistSessionStore(sessions);
-    }
-    return null;
-  }
-
-  const users = await loadUsers();
-  return users.find((user) => user.id === session.userId) || null;
-}
-
-async function requireAuth(req, res) {
-  const user = await authGetAuthenticatedUser(req);
-  if (!user) {
-    sendJson(res, 401, { error: "Unauthorized" });
-    return null;
-  }
-  await ensureUserDirs(user);
-  return user;
-}
-
 function skillFilePath(user, id) {
   return join(userSkillsDir(user), `${id}.json`);
 }
@@ -398,14 +349,14 @@ function normalizeSkillPayload(input) {
   return skill;
 }
 
-function normalizeRelativePath(input) {
+function legacyNormalizeRelativePath(input) {
   return String(input || "")
     .replace(/\\/g, "/")
     .replace(/^\/+/, "")
     .trim();
 }
 
-function workspacePath(user, input) {
+function legacyWorkspacePath(user, input) {
   const root = userWorkspaceDir(user);
   const rel = normalizeRelativePath(input);
   const absolute = resolve(root, rel || ".");
@@ -537,7 +488,7 @@ function normalizeChatJobPayload(input, credentials = {}) {
   throw error;
 }
 
-function entryTypeFromStats(stats) {
+function legacyEntryTypeFromStats(stats) {
   if (stats.isDirectory()) return "directory";
   if (stats.isFile()) return "file";
   return "other";
@@ -968,7 +919,7 @@ async function requireApprovedAction(user, approvalId, expectedAction, consumeMe
   return updated;
 }
 
-async function loadUserState(user) {
+async function legacyLoadUserState(user) {
   await ensureUserDirs(user);
   try {
     return sanitizeUserState(JSON.parse(await readFile(userStateFile(user), "utf8")));
@@ -977,7 +928,7 @@ async function loadUserState(user) {
   }
 }
 
-async function saveUserState(user, nextState) {
+async function legacySaveUserState(user, nextState) {
   await ensureUserDirs(user);
   const safeState = sanitizeUserState(nextState);
   await writeFile(userStateFile(user), `${JSON.stringify(safeState, null, 2)}\n`, "utf8");
@@ -2613,7 +2564,7 @@ async function handleChatApi(req, res, user) {
   });
 }
 
-async function handleAuthRoutes(req, res, url) {
+async function legacyHandleAuthRoutes(req, res, url) {
   if (req.method === "GET" && url.pathname === "/auth/me") {
     const user = await getAuthenticatedUser(req);
     if (!user) {
@@ -2825,7 +2776,7 @@ async function handleSystemPromptsApi(req, res, url, user) {
   sendJson(res, 405, { error: "Method not allowed" });
 }
 
-async function handleFsApi(req, res, url, user) {
+async function legacyHandleFsApi(req, res, url, user) {
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
@@ -3297,7 +3248,7 @@ async function handleExecApi(req, res, url, user) {
   sendJson(res, 405, { error: "Method not allowed" });
 }
 
-async function handleStateApi(req, res, user) {
+async function legacyHandleStateApi(req, res, user) {
   if (req.method === "GET") {
     sendJson(res, 200, { state: await loadUserState(user) });
     return;
