@@ -5365,7 +5365,22 @@ return await createBackendApprovalRequest({
             let pendingImages = [];
             let systemPromptPresets = [];
             const chatRuntime = window.SkillFlowChat.init({
-                generationControllers
+                generationControllers,
+                autoH,
+                toast,
+                renderImagePreview,
+                getPendingImages: () => pendingImages,
+                getPendingFiles: () => pendingFiles,
+                setPendingImages: (next) => { pendingImages = Array.isArray(next) ? next : []; },
+                setPendingFiles: (next) => { pendingFiles = Array.isArray(next) ? next : []; },
+                getConversations: () => convs,
+                saveConvs,
+                renderSidebar,
+                renderChat,
+                getRuntimeConfig: () => runtimeConfig,
+                getGeminiLive: () => geminiLive,
+                setLiveMode: (next) => { liveMode = !!next; },
+                newMessageId
             });
             const ttsRuntime = window.SkillFlowTts.init({
                 storage: storageSync,
@@ -6937,72 +6952,11 @@ return await createBackendApprovalRequest({
 
                 // â•â•â• Live model: text must go via WebSocket (no REST support) â•â•â•
                 if (isLiveModel(model)) {
-                    if (!runtimeConfig.live_client_enabled) {
-                        toast('Live mode desabilitado por politica neste ambiente.');
-                        return;
-                    }
-                    const apiKey = document.getElementById('api-in').value.trim();
-                    if (!apiKey) { toast('âš  Insira sua API Key!'); return; }
-                    if (pendingFiles.length) {
-                        toast('âš  Gemini 3.1 Live aceita imagem nesse fluxo, mas nÃ£o arquivo de texto/cÃ³digo/PDF anexado.');
-                        return;
-                    }
-
-                    input.value = ''; autoH(input);
-
-                    let imgsToSave = [...pendingImages];
-                    let filesToSave = [...pendingFiles];
-                    pendingImages = [];
-                    pendingFiles = [];
-                    renderImagePreview();
-
-                    try {
-                        imgsToSave = await persistPendingAttachments(imgsToSave, 'images');
-                        filesToSave = await persistPendingAttachments(filesToSave, 'files');
-                    } catch (error) {
-                        pendingImages = imgsToSave;
-                        pendingFiles = filesToSave;
-                        renderImagePreview();
-                        toast('âš  Falha ao salvar anexos do usuÃ¡rio: ' + (error.message || 'erro desconhecido'));
-                        return;
-                    }
-
-                    // Flush pending voice transcripts BEFORE adding text (preserves chronological order)
-                    if (geminiLive.active && (geminiLive.pendingTranscript.trim() || geminiLive.pendingUserTranscript.trim())) {
-                        geminiLive.onTurnComplete();
-                    }
-
-                    // Log user text message
-                    const msgData = { id: newMessageId('msg'), role: 'user', text, ts: Date.now(), live: true };
-                    if (imgsToSave.length) msgData.imgs = imgsToSave;
-                    if (filesToSave.length) msgData.files = filesToSave;
-                    convs[conversationId].msgs.push(msgData);
-                    convs[conversationId].ts = msgData.ts;
-                    if (convs[conversationId].msgs.length === 1) {
-                        convs[conversationId].title = text
-                            ? text.slice(0, 48) + (text.length > 48 ? 'â€¦' : '')
-                            : (imgsToSave.length ? 'Imagem enviada' : filesToSave[0]?.name || 'Arquivo enviado');
-                    }
-                    saveConvs(); renderSidebar(); renderChat();
-
-                    // Auto-connect WebSocket if not active
-                    if (!geminiLive.active) {
-                        try {
-                            liveMode = true;
-                            document.getElementById('live-btn')?.classList.add('on');
-                            await geminiLive.connect(apiKey, model);
-                        } catch (err) {
-                            liveMode = false;
-                            document.getElementById('live-btn')?.classList.remove('on');
-                            toast('âŒ Falha ao conectar Live: ' + (err.message || ''));
-                            return;
-                        }
-                    }
-
-                    geminiLive.sendTurn({
+                    await chatRuntime.handleLiveSend({
+                        conversationId,
+                        input,
                         text,
-                        images: imgsToSave,
-                        files: []
+                        model
                     });
                     return;
                 }
