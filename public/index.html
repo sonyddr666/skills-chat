@@ -21,6 +21,7 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="./app/storage-sync.js"></script>
+    <script src="./app/jobs.js"></script>
     <script src="./app/tts.js"></script>
     <script src="./account.js"></script>
     <script src="./app/api-client.js"></script>
@@ -6253,91 +6254,29 @@ return await createBackendApprovalRequest({
                     toast('âš  Armazenamento local cheio. O navegador reduziu o histÃ³rico salvo.');
                 }
             }
-            const chatJobPolls = new Map();
+            const jobsRuntime = window.SkillFlowJobs.init({
+                getConversations: () => convs,
+                getActiveId: () => activeId,
+                saveConvs,
+                renderChat,
+                renderMarkdown,
+                esc,
+                conversationMessages,
+                pushMessageTraceOnce,
+                createTraceStep,
+                revealMessageText,
+                updateVisibleJobBubble,
+                buildCodexInputFromMessages,
+                buildCodexTools,
+                buildGeminiRequestFromMessages
+            });
 
-            async function requestChatJob(payload, signal) {
-                const res = await fetch('/api/chat/jobs', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                    signal
-                });
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) throw new Error(data.error || (`HTTP ${res.status}`));
-                return data.job || null;
-            }
-
-            async function fetchChatJobSnapshot(jobId, signal) {
-                const res = await fetch(`/api/chat/jobs/${encodeURIComponent(jobId)}`, {
-                    cache: 'no-store',
-                    signal
-                });
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) throw new Error(data.error || (`HTTP ${res.status}`));
-                return data;
-            }
-
-            function sleepWithSignal(ms, signal) {
-                return new Promise((resolve, reject) => {
-                    const timer = setTimeout(() => {
-                        if (signal) signal.removeEventListener('abort', onAbort);
-                        resolve();
-                    }, ms);
-                    function onAbort() {
-                        clearTimeout(timer);
-                        reject(new DOMException('Aborted', 'AbortError'));
-                    }
-                    if (signal) {
-                        if (signal.aborted) {
-                            onAbort();
-                            return;
-                        }
-                        signal.addEventListener('abort', onAbort, { once: true });
-                    }
-                });
-            }
-
-            function parseGeminiJobSnapshot(rawSse) {
-                let full = '', tok = 0, sig = '';
-                const fnCallParts = [];
-                const lines = String(rawSse || '').split('\n');
-                for (const line of lines) {
-                    if (!line.startsWith('data: ')) continue;
-                    const raw = line.slice(6).trim();
-                    if (!raw || raw === '[DONE]') continue;
-                    try {
-                        const parsed = JSON.parse(raw);
-                        for (const part of (parsed.candidates?.[0]?.content?.parts || [])) {
-                            if (part.text) full += part.text;
-                            if (part.thoughtSignature && !part.functionCall) sig = part.thoughtSignature;
-                            if (part.functionCall) fnCallParts.push({ ...part });
-                        }
-                        if (parsed.usageMetadata?.totalTokenCount) tok = parsed.usageMetadata.totalTokenCount;
-                    } catch (_) { }
-                }
-                return { full, tok, sig, fnCallParts };
-            }
-
-            function updateMessageChatJob(convId, msgIndex, patch = {}, saveNow = true) {
-                const message = getConversationMessage(convId, msgIndex);
-                if (!message || message.role !== 'model') return null;
-                message.chatJob = {
-                    ...(message.chatJob && typeof message.chatJob === 'object' ? message.chatJob : {}),
-                    ...patch
-                };
-                if (saveNow) saveConvs();
-                return message;
-            }
-
-            function getConversationMessage(convId, msgIndex) {
-                return conversationMessages(convs?.[convId])?.[msgIndex] || null;
-            }
-
-            function findConversationMessageIndex(convId, messageId) {
-                if (!messageId) return -1;
-                const msgs = conversationMessages(convs?.[convId]);
-                return msgs.findIndex(message => message?.id === messageId);
-            }
+            function requestChatJob(payload, signal) { return jobsRuntime.requestChatJob(payload, signal); }
+            function fetchChatJobSnapshot(jobId, signal) { return jobsRuntime.fetchChatJobSnapshot(jobId, signal); }
+            function parseGeminiJobSnapshot(rawSse) { return jobsRuntime.parseGeminiJobSnapshot(rawSse); }
+            function updateMessageChatJob(convId, msgIndex, patch = {}, saveNow = true) { return jobsRuntime.updateMessageChatJob(convId, msgIndex, patch, saveNow); }
+            function getConversationMessage(convId, msgIndex) { return jobsRuntime.getConversationMessage(convId, msgIndex); }
+            function findConversationMessageIndex(convId, messageId) { return jobsRuntime.findConversationMessageIndex(convId, messageId); }
 
             const messageRevealAnimations = new Map();
 
@@ -6429,120 +6368,8 @@ return await createBackendApprovalRequest({
                 scrollEnd();
             }
 
-            async function waitForChatJob(jobId, options = {}) {
-                const existing = chatJobPolls.get(jobId);
-                if (existing) return existing;
-
-                const runner = (async () => {
-                    while (true) {
-                        const snapshot = await fetchChatJobSnapshot(jobId, options.signal);
-                        if (typeof options.onSnapshot === 'function') options.onSnapshot(snapshot);
-
-                        const status = snapshot?.job?.status || '';
-                        if (status === 'completed' || status === 'failed') return snapshot;
-                        await sleepWithSignal(options.pollMs || 250, options.signal);
-                    }
-                })();
-
-                chatJobPolls.set(jobId, runner);
-                try {
-                    return await runner;
-                } finally {
-                    chatJobPolls.delete(jobId);
-                }
-            }
-
-            function applyChatJobSnapshotToMessage(convId, msgIndex, snapshot) {
-                const message = getConversationMessage(convId, msgIndex);
-                if (!message || message.role !== 'model') return;
-
-                const provider = snapshot?.job?.provider || message?.chatJob?.provider || '';
-                const status = snapshot?.job?.status || message?.chatJob?.status || 'running';
-                const errorMessage = snapshot?.job?.error?.message || '';
-                let visibleHtml = '';
-                let needsFullRender = false;
-
-                if (provider === 'gemini') {
-                    const parsed = parseGeminiJobSnapshot(snapshot?.raw_sse || '');
-                    if (parsed.full) {
-                        message.text = parsed.full;
-                        visibleHtml = renderMarkdown(parsed.full);
-                    }
-                    if (parsed.tok) message.tok = parsed.tok;
-                    if (parsed.sig) message.sig = parsed.sig;
-                    if (status === 'failed') {
-                        message.text = message.text || `[Falha: ${errorMessage || 'Falha ao executar o job Gemini no backend.'}]`;
-                        visibleHtml = `<p style="color:var(--danger);font-style:italic">${esc(errorMessage || 'Falha ao executar o job Gemini no backend.')}</p>`;
-                        pushMessageTraceOnce(message, createTraceStep('error', {
-                            title: 'Falha',
-                            body: errorMessage || 'Falha ao executar o job Gemini no backend.'
-                        }));
-                        needsFullRender = true;
-                    } else if (status === 'completed' && !parsed.full) {
-                        if (parsed.fnCallParts.length) {
-                            message.text = message.text || '[A chamada do modelo foi retomada, mas ainda faltou continuar as tools no cliente.]';
-                            visibleHtml = `<p style="color:var(--muted);font-style:italic">A resposta foi retomada, mas ainda hÃ¡ tools pendentes para continuar no cliente.</p>`;
-                            pushMessageTraceOnce(message, createTraceStep('pending_tools', {
-                                title: 'Tools pendentes',
-                                body: `A retomada encontrou ${parsed.fnCallParts.length} function call(s) que ainda dependem do cliente.`
-                            }));
-                        } else {
-                            message.text = message.text || '[Resposta vazia â€” o modelo nao retornou texto visivel.]';
-                            visibleHtml = `<p style="color:var(--muted);font-style:italic">O modelo concluiu sem texto visivel.</p>`;
-                            pushMessageTraceOnce(message, createTraceStep('final', {
-                                title: 'Resposta vazia',
-                                body: 'O modelo concluiu a chamada sem texto visivel.'
-                            }));
-                        }
-                        needsFullRender = true;
-                    }
-                } else if (provider === 'codex') {
-                    const payload = snapshot?.result?.payload || {};
-                    if (payload.output_text) {
-                        message.text = payload.output_text;
-                        visibleHtml = renderMarkdown(payload.output_text);
-                    }
-                    const totalTokens = payload.usage?.total_tokens ?? payload.usage?.output_tokens ?? 0;
-                    if (totalTokens) message.tok = totalTokens;
-                    if (status === 'failed') {
-                        message.text = message.text || `[Falha: ${errorMessage || 'Falha ao executar o job Codex no backend.'}]`;
-                        visibleHtml = `<p style="color:var(--danger);font-style:italic">${esc(errorMessage || 'Falha ao executar o job Codex no backend.')}</p>`;
-                        pushMessageTraceOnce(message, createTraceStep('error', {
-                            title: 'Falha',
-                            body: errorMessage || 'Falha ao executar o job Codex no backend.'
-                        }));
-                        needsFullRender = true;
-                    } else if (status === 'completed' && !payload.output_text) {
-                        message.text = message.text || '[Resposta vazia â€” o Codex nao retornou texto visivel.]';
-                        visibleHtml = `<p style="color:var(--muted);font-style:italic">O Codex concluiu sem texto visivel.</p>`;
-                        pushMessageTraceOnce(message, createTraceStep('final', {
-                            title: 'Resposta vazia',
-                            body: 'O Codex concluiu a chamada sem texto visivel.'
-                        }));
-                        needsFullRender = true;
-                    }
-                }
-
-                updateMessageChatJob(convId, msgIndex, {
-                    id: snapshot?.job?.id || message?.chatJob?.id,
-                    provider,
-                    status,
-                    finishedAt: snapshot?.job?.finished_at || null,
-                    updatedAt: snapshot?.job?.updated_at || Date.now(),
-                    error: snapshot?.job?.error || null
-                }, false);
-                if (activeId === convId) {
-                    if (status === 'completed' || status === 'failed' || needsFullRender) {
-                        renderChat();
-                        if (provider === 'gemini' && message.text && status === 'completed') {
-                            revealMessageText(convId, msgIndex, message.text, { final: true });
-                        }
-                    } else if (visibleHtml) {
-                        updateVisibleJobBubble(convId, msgIndex, visibleHtml);
-                    }
-                }
-                saveConvs();
-            }
+            function waitForChatJob(jobId, options = {}) { return jobsRuntime.waitForChatJob(jobId, options); }
+            function applyChatJobSnapshotToMessage(convId, msgIndex, snapshot) { return jobsRuntime.applyChatJobSnapshotToMessage(convId, msgIndex, snapshot); }
 
             function buildGeminiRequestFromMessages(messages, options = {}) {
                 const msgList = Array.isArray(messages) ? messages : [];
@@ -6612,116 +6439,8 @@ return await createBackendApprovalRequest({
                 return body;
             }
 
-            function rebuildPendingChatRequest(convId, msgIndex) {
-                const conversation = convs?.[convId];
-                const messages = conversationMessages(conversation);
-                const message = messages?.[msgIndex];
-                const job = message?.chatJob;
-                const resumeState = job?.resumeState;
-                if (!conversation || !message || message.role !== 'model' || !resumeState) return null;
-
-                const historyMessages = messages.slice(0, msgIndex);
-                if (resumeState.provider === 'codex') {
-                    return {
-                        provider: 'codex',
-                        model: resumeState.model,
-                        reasoning: resumeState.reasoning,
-                        instructions: resumeState.instructions || '',
-                        input: buildCodexInputFromMessages(historyMessages),
-                        tools: buildCodexTools()
-                    };
-                }
-
-                return {
-                    provider: 'gemini',
-                    model: resumeState.model,
-                    request: buildGeminiRequestFromMessages(historyMessages, {
-                        model: resumeState.model,
-                        think: resumeState.think,
-                        temperature: resumeState.temperature,
-                        topP: resumeState.topP,
-                        topK: resumeState.topK,
-                        maxOutputTokens: resumeState.maxOutputTokens,
-                        systemPrompt: resumeState.systemPrompt || ''
-                    })
-                };
-            }
-
-            function resumePendingChatJobs() {
-                Object.entries(convs || {}).forEach(([convId, conversation]) => {
-                    const msgs = conversationMessages(conversation);
-                    msgs.forEach((message, msgIndex) => {
-                        const job = message?.chatJob;
-                        if (!job) return;
-                        if (job.status === 'completed' || job.status === 'failed') return;
-                        const rebuiltRequest = !job.id && !job.pendingRequest
-                            ? rebuildPendingChatRequest(convId, msgIndex)
-                            : null;
-                        const ensureJob = job.id
-                            ? Promise.resolve(job.id)
-                            : (job.pendingRequest
-                                ? requestChatJob(job.pendingRequest).then(createdJob => {
-                                    updateMessageChatJob(convId, msgIndex, {
-                                        id: createdJob?.id || null,
-                                        status: createdJob?.status || 'running',
-                                        startedAt: createdJob?.created_at || Date.now(),
-                                        pendingRequest: null,
-                                        error: null
-                                    });
-                                    return createdJob?.id || null;
-                                })
-                                : (rebuiltRequest
-                                    ? requestChatJob(rebuiltRequest).then(createdJob => {
-                                        updateMessageChatJob(convId, msgIndex, {
-                                            id: createdJob?.id || null,
-                                            status: createdJob?.status || 'running',
-                                            startedAt: createdJob?.created_at || Date.now(),
-                                            pendingRequest: null,
-                                            error: null
-                                        });
-                                        return createdJob?.id || null;
-                                    })
-                                    : Promise.resolve(null)));
-                        ensureJob.then(jobId => {
-                            if (!jobId) {
-                                if (message?.role === 'model') {
-                                    message.text = message.text || '[Falha: nao foi possivel retomar esta resposta automaticamente.]';
-                                    pushMessageTraceOnce(message, createTraceStep('error', {
-                                        title: 'Retomada indisponivel',
-                                        body: 'Nao foi possivel reconstruir ou localizar o job de chat salvo.'
-                                    }));
-                                }
-                                updateMessageChatJob(convId, msgIndex, {
-                                    status: 'failed',
-                                    finishedAt: Date.now(),
-                                    error: { message: 'Nao foi possivel retomar esta resposta automaticamente.' }
-                                });
-                                if (activeId === convId) renderChat();
-                                return;
-                            }
-                            return waitForChatJob(jobId, {
-                            onSnapshot(snapshot) {
-                                applyChatJobSnapshotToMessage(convId, msgIndex, snapshot);
-                            }
-                            });
-                        }).catch(error => {
-                            if (message?.role === 'model') {
-                                message.text = message.text || `[Falha: ${error.message || 'Falha ao retomar job de chat.'}]`;
-                                pushMessageTraceOnce(message, createTraceStep('error', {
-                                    title: 'Falha na retomada',
-                                    body: error.message || 'Falha ao retomar job de chat.'
-                                }));
-                            }
-                            updateMessageChatJob(convId, msgIndex, {
-                                status: 'failed',
-                                finishedAt: Date.now(),
-                                error: { message: error.message || 'Falha ao retomar job de chat.' }
-                            });
-                            if (activeId === convId) renderChat();
-                        });
-                    });
-                });
-            }
+            function rebuildPendingChatRequest(convId, msgIndex) { return jobsRuntime.rebuildPendingChatRequest(convId, msgIndex); }
+            function resumePendingChatJobs() { return jobsRuntime.resumePendingChatJobs(); }
             function newConversation() {
                 // Prevent creating multiple empty conversations
                 if (activeId && conversationMessages(convs[activeId]).length === 0) {
