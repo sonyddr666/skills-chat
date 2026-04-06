@@ -3475,18 +3475,53 @@ async function serveStatic(req, res, user) {
   createReadStream(finalPath).pipe(res);
 }
 
-const server = createServer(async (req, res) => {
+function handleHealthRoute(res, user) {
+  sendJson(res, 200, {
+    status: "ok",
+    service: "skillflow-node-9321",
+    port: PORT,
+    authenticated: Boolean(user),
+    codex_fake_responses: CODEX_FAKE_RESPONSES
+  });
+}
+
+function matchApiRoute(pathname, route) {
+  const exactMatch = route.exact ? pathname === route.exact : false;
+  const prefixMatch = route.prefix ? pathname === route.prefix || pathname.startsWith(route.prefix) : false;
+  return exactMatch || prefixMatch;
+}
+
+async function dispatchAuthenticatedApiRoute(req, res, url, user) {
+  const apiRoutes = [
+    { exact: "/api/ghost-search", handler: (authUser) => handleGhostSearch(req, res, authUser) },
+    { exact: "/api/runtime-config", handler: (authUser) => handleRuntimeConfigApi(req, res, authUser) },
+    { exact: "/api/credentials", handler: (authUser) => handleCredentialsApi(req, res, authUser) },
+    { prefix: "/api/approvals/", exact: "/api/approvals", handler: (authUser) => approvalsHandleApi(req, res, url, authUser) },
+    { prefix: "/api/tts/", handler: () => handleTtsApi(req, res, url) },
+    { prefix: "/api/chat/", exact: "/api/chat", handler: (authUser) => handleChatApi(req, res, authUser) },
+    { exact: "/api/state", handler: (authUser) => stateHandleStateApi(req, res, authUser) },
+    { prefix: "/api/skills/", exact: "/api/skills", handler: (authUser) => handleSkillsApi(req, res, url, authUser) },
+    { prefix: "/api/exec/", exact: "/api/exec", handler: (authUser) => execHandleApi(req, res, url, authUser) },
+    { prefix: "/api/system-prompts/", exact: "/api/system-prompts", handler: (authUser) => systemPromptsHandleApi(req, res, url, authUser) },
+    { prefix: "/api/fs/", handler: (authUser) => fsHandleFsApi(req, res, url, authUser) }
+  ];
+
+  for (const route of apiRoutes) {
+    if (matchApiRoute(url.pathname, route)) {
+      await route.handler(user);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function handleRequest(req, res) {
   const url = new URL(req.url || "/", `http://${req.headers.host}`);
   const user = await authGetAuthenticatedUser(req);
 
   if (url.pathname === "/health") {
-    sendJson(res, 200, {
-      status: "ok",
-      service: "skillflow-node-9321",
-      port: PORT,
-      authenticated: Boolean(user),
-      codex_fake_responses: CODEX_FAKE_RESPONSES
-    });
+    handleHealthRoute(res, user);
     return;
   }
 
@@ -3504,51 +3539,10 @@ const server = createServer(async (req, res) => {
     if (!authUser) return;
 
     try {
-      if (url.pathname === "/api/ghost-search") {
-        await handleGhostSearch(req, res, authUser);
-        return;
+      const handled = await dispatchAuthenticatedApiRoute(req, res, url, authUser);
+      if (!handled) {
+        sendJson(res, 404, { error: "Not found" });
       }
-      if (url.pathname === "/api/runtime-config") {
-        await handleRuntimeConfigApi(req, res, authUser);
-        return;
-      }
-      if (url.pathname === "/api/credentials") {
-        await handleCredentialsApi(req, res, authUser);
-        return;
-      }
-      if (url.pathname === "/api/approvals" || url.pathname.startsWith("/api/approvals/")) {
-        await approvalsHandleApi(req, res, url, authUser);
-        return;
-      }
-      if (url.pathname.startsWith("/api/tts/")) {
-        await handleTtsApi(req, res, url);
-        return;
-      }
-      if (url.pathname === "/api/chat" || url.pathname.startsWith("/api/chat/")) {
-        await handleChatApi(req, res, authUser);
-        return;
-      }
-      if (url.pathname === "/api/state") {
-        await stateHandleStateApi(req, res, authUser);
-        return;
-      }
-      if (url.pathname === "/api/skills" || url.pathname.startsWith("/api/skills/")) {
-        await handleSkillsApi(req, res, url, authUser);
-        return;
-      }
-      if (url.pathname === "/api/exec" || url.pathname.startsWith("/api/exec/")) {
-        await execHandleApi(req, res, url, authUser);
-        return;
-      }
-      if (url.pathname === "/api/system-prompts" || url.pathname.startsWith("/api/system-prompts/")) {
-        await systemPromptsHandleApi(req, res, url, authUser);
-        return;
-      }
-      if (url.pathname.startsWith("/api/fs/")) {
-        await fsHandleFsApi(req, res, url, authUser);
-        return;
-      }
-      sendJson(res, 404, { error: "Not found" });
     } catch (error) {
       sendJson(res, error.statusCode || 500, { error: `api failed: ${error.message}` });
     }
@@ -3560,7 +3554,9 @@ const server = createServer(async (req, res) => {
   } catch (error) {
     sendJson(res, error.statusCode || 500, { error: `static-serve failed: ${error.message}` });
   }
-});
+}
+
+const server = createServer(handleRequest);
 
 ensureBaseDirs()
   .then(() => {
