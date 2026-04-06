@@ -4964,9 +4964,13 @@ return item;`
                 const sel = document.getElementById('sysp-preset-sel');
                 if (!sel) return;
                 const wanted = String(selectedId || '');
-                sel.innerHTML = '<option value="">Preset compartilhado...</option>' +
-                    systemPromptPresets.map(item => `<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('');
-                sel.value = systemPromptPresets.some(item => item.id === wanted) ? wanted : '';
+                sel.innerHTML = '<option value="">Preset privado/compartilhado...</option>' +
+                    systemPromptPresets.map(item => {
+                        const key = item.storage_key || `${item.scope || 'private'}:${item.id}`;
+                        const scopeLabel = item.scope === 'shared' ? '[Compartilhado]' : '[Privado]';
+                        return `<option value="${esc(key)}">${esc(scopeLabel + ' ' + item.name)}</option>`;
+                    }).join('');
+                sel.value = systemPromptPresets.some(item => (item.storage_key || `${item.scope || 'private'}:${item.id}`) === wanted) ? wanted : '';
             }
 
             async function loadSystemPromptPresets(selectedId = null) {
@@ -4987,9 +4991,9 @@ return item;`
                 const sel = document.getElementById('sysp-preset-sel');
                 const promptBox = document.getElementById('sysp');
                 if (!sel || !promptBox) return;
-                const preset = systemPromptPresets.find(item => item.id === sel.value);
+                const preset = systemPromptPresets.find(item => (item.storage_key || `${item.scope || 'private'}:${item.id}`) === sel.value);
                 if (!preset) {
-                    toast('âš  Selecione um preset compartilhado.');
+                    toast('âš  Selecione um preset valido.');
                     return;
                 }
                 promptBox.value = preset.prompt || '';
@@ -5004,25 +5008,29 @@ return item;`
                     return;
                 }
                 const currentId = document.getElementById('sysp-preset-sel')?.value || '';
-                const current = systemPromptPresets.find(item => item.id === currentId);
-                const suggested = current?.name || 'Novo preset compartilhado';
-                const name = window.prompt('Nome do preset compartilhado:', suggested);
+                const current = systemPromptPresets.find(item => (item.storage_key || `${item.scope || 'private'}:${item.id}`) === currentId);
+                const currentScope = current?.scope || 'private';
+                const suggested = current?.name || 'Novo preset privado';
+                const name = window.prompt('Nome do preset:', suggested);
                 if (!name || !name.trim()) return;
+                const shared = window.confirm('Salvar como compartilhado?\n\nOK = compartilhado\nCancelar = privado');
+                const scope = shared ? 'shared' : 'private';
                 try {
                     const res = await fetch('/api/system-prompts', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            id: currentId || undefined,
+                            id: current && currentScope === scope ? current.id : undefined,
                             name: name.trim(),
-                            prompt: promptBox.value
+                            prompt: promptBox.value,
+                            scope
                         })
                     });
                     const data = await res.json();
                     if (!res.ok || !data?.item?.id) throw new Error(data?.error || 'erro desconhecido');
-                    await loadSystemPromptPresets(data.item.id);
+                    await loadSystemPromptPresets(data.item.storage_key || `${data.item.scope || 'private'}:${data.item.id}`);
                     save();
-                    toast(`âœ“ Preset compartilhado salvo: ${data.item.name}`);
+                    toast(`âœ“ Preset ${data.item.scope === 'shared' ? 'compartilhado' : 'privado'} salvo: ${data.item.name}`);
                 } catch (error) {
                     toast('âš  Falha ao salvar preset: ' + (error.message || 'erro desconhecido'));
                 }

@@ -11,6 +11,7 @@ const ENABLE_CHAT_SMOKE = ["1", "true", "yes", "on"].includes(String(process.env
 const ENABLE_TTS_SMOKE = ["1", "true", "yes", "on"].includes(String(process.env.SMOKE_ENABLE_TTS || "").trim().toLowerCase());
 
 const results = [];
+let serverProcess = null;
 
 function log(message) {
   process.stdout.write(`${message}\n`);
@@ -81,10 +82,60 @@ async function waitForHealth(timeoutMs = 15000) {
   throw new Error("server did not become healthy in time");
 }
 
+function attachServerLogs(child) {
+  child.stdout.on("data", (chunk) => {
+    const text = chunk.toString("utf8").trim();
+    if (text) log(`[server] ${text}`);
+  });
+
+  child.stderr.on("data", (chunk) => {
+    const text = chunk.toString("utf8").trim();
+    if (text) log(`[server:err] ${text}`);
+  });
+}
+
+function spawnServer() {
+  const child = spawn("node", ["server.js"], {
+    cwd: process.cwd(),
+    stdio: ["ignore", "pipe", "pipe"],
+    env: process.env
+  });
+  attachServerLogs(child);
+  return child;
+}
+
+async function stopServer(child) {
+  if (!child || child.killed) return;
+  child.kill("SIGTERM");
+  await delay(300);
+  if (!child.killed) child.kill("SIGKILL");
+}
+
+async function restartServer() {
+  if (USE_EXISTING_SERVER) return false;
+  await stopServer(serverProcess);
+  serverProcess = spawnServer();
+  await waitForHealth();
+  return true;
+}
+
+async function registerUser(login, password, cookieJar) {
+  const { response, body } = await fetchJson("/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ login, password })
+  }, cookieJar);
+  assert(response.ok, "register should return 200");
+  assert(body?.user?.login === login, "register should return created user");
+  assert(cookieJar.header().includes("sf_session="), "register should establish session cookie");
+}
+
 async function runCoreSmoke() {
   const cookieJar = createCookieJar();
+  const secondaryCookieJar = createCookieJar();
   const suffix = `${Date.now()}`;
   const login = `smoke_${suffix}`;
+  const secondaryLogin = `smoke_peer_${suffix}`;
   const password = "1234";
 
   {
@@ -95,14 +146,7 @@ async function runCoreSmoke() {
   }
 
   {
-    const { response, body } = await fetchJson("/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ login, password })
-    }, cookieJar);
-    assert(response.ok, "register should return 200");
-    assert(body?.user?.login === login, "register should return created user");
-    assert(cookieJar.header().includes("sf_session="), "register should establish session cookie");
+    await registerUser(login, password, cookieJar);
     mark("signup", "PASS", login);
   }
 
@@ -181,10 +225,47 @@ async function runCoreSmoke() {
   }
 
   {
+    await registerUser(secondaryLogin, password, secondaryCookieJar);
+    const listResult = await fetchJson("/api/system-prompts", {}, secondaryCookieJar);
+    const items = Array.isArray(listResult.body?.items) ? listResult.body.items : [];
+    assert(!items.some((item) => item.id === `smoke-prompt-${suffix}` && item.scope !== "shared"), "private prompt should not leak to another user");
+    mark("prompt privado isolado por usuario", "PASS");
+  }
+
+  {
+    const sharedPromptId = `smoke-shared-${suffix}`;
+    const sharedCreate = await fetchJson("/api/system-prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: sharedPromptId,
+        name: `Smoke Shared ${suffix}`,
+        prompt: "Prompt compartilhado de smoke.",
+        scope: "shared"
+      })
+    }, cookieJar);
+    assert(sharedCreate.response.ok, "shared prompt create should return 200");
+    const secondaryList = await fetchJson("/api/system-prompts", {}, secondaryCookieJar);
+    const items = Array.isArray(secondaryList.body?.items) ? secondaryList.body.items : [];
+    assert(items.some((item) => item.id === sharedPromptId && item.scope === "shared"), "shared prompt should be visible to another user");
+    mark("prompt compartilhado visivel por decisao explicita", "PASS");
+  }
+
+  {
     const { response, body } = await fetchJson("/auth/me", {}, cookieJar);
     assert(response.ok, "session should survive between authenticated requests");
     assert(body?.user?.login === login, "session should remain bound to same user");
     mark("sessao sobrevive entre requests", "PASS");
+  }
+
+  if (!USE_EXISTING_SERVER) {
+    await restartServer();
+    const { response, body } = await fetchJson("/auth/me", {}, cookieJar);
+    assert(response.ok, "session should survive server restart");
+    assert(body?.user?.login === login, "session should remain valid after restart");
+    mark("sessao persiste apos restart", "PASS");
+  } else {
+    mark("sessao persiste apos restart", "SKIP", "use smoke sem SMOKE_USE_EXISTING_SERVER para validar restart");
   }
 
   {
@@ -287,24 +368,9 @@ async function runOptionalTtsSmoke() {
 }
 
 async function main() {
-  let serverProcess = null;
   try {
     if (!USE_EXISTING_SERVER) {
-      serverProcess = spawn("node", ["server.js"], {
-        cwd: process.cwd(),
-        stdio: ["ignore", "pipe", "pipe"],
-        env: process.env
-      });
-
-      serverProcess.stdout.on("data", (chunk) => {
-        const text = chunk.toString("utf8").trim();
-        if (text) log(`[server] ${text}`);
-      });
-
-      serverProcess.stderr.on("data", (chunk) => {
-        const text = chunk.toString("utf8").trim();
-        if (text) log(`[server:err] ${text}`);
-      });
+      serverProcess = spawnServer();
     } else {
       log(`[info] usando servidor existente em ${BASE_URL}`);
     }
@@ -323,11 +389,7 @@ async function main() {
     mark("smoke baseline", "FAIL", error.message);
     process.exitCode = 1;
   } finally {
-    if (serverProcess && !serverProcess.killed) {
-      serverProcess.kill("SIGTERM");
-      await delay(300);
-      if (!serverProcess.killed) serverProcess.kill("SIGKILL");
-    }
+    await stopServer(serverProcess);
   }
 }
 

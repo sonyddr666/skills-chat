@@ -33,6 +33,14 @@ Servidor padrao:
 - `localStorage`, `pendingRequest` e `resumeState` nao carregam mais `api_key` ou `auth`
 - Live client continua desabilitado por padrao
 
+## Isolamento da Fase 2
+
+- `system-prompts` privados agora ficam isolados por usuario
+- prompt compartilhado so existe com `scope=shared`
+- sessao autenticada fica persistida em disco e sobrevive restart do processo
+- `/api/state` sanitiza estado salvo e remove restos sensiveis de configuracao e chat jobs
+- `localStorage` segue focado em preferencias e estado de UI
+
 ## Flags de Ambiente
 
 - `SKILLFLOW_EXEC_ENABLED=true`
@@ -66,8 +74,9 @@ Checks atuais:
 - `GET /auth/me`
 - criar e listar arquivo na workspace
 - criar prompt
+- validar isolamento entre prompts privados e compartilhados
 - `POST /api/exec` bloqueado por padrao
-- validar sessao entre requests
+- validar sessao entre requests e apos restart
 
 Smokes externos continuam opt-in:
 

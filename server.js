@@ -18,7 +18,9 @@ const usersFile = join(systemDir, "users.json");
 const userStateDir = join(systemDir, "state");
 const systemPromptsDir = join(systemDir, "system-prompts");
 const credentialsDir = join(systemDir, "credentials");
-const sessions = new Map();
+const sharedSystemPromptsDir = join(systemPromptsDir, "_shared");
+const sessionsFile = join(systemDir, "sessions.json");
+let sessionStoreCache = null;
 const TOKEN_URL = "https://auth.openai.com/oauth/token";
 const CODEX_RESPONSES_URL = "https://chatgpt.com/backend-api/codex/responses";
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -171,12 +173,22 @@ function parseCookies(req) {
   }, {});
 }
 
-function sessionCookie(token) {
-  return `sf_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_TTL_SECONDS}`;
+function isHttpsRequest(req) {
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").trim().toLowerCase();
+  if (forwardedProto) {
+    return forwardedProto.split(",")[0].trim() === "https";
+  }
+  return Boolean(req.socket?.encrypted);
 }
 
-function clearSessionCookie() {
-  return "sf_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
+function sessionCookie(req, token) {
+  const secure = isHttpsRequest(req) ? "; Secure" : "";
+  return `sf_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_TTL_SECONDS}${secure}`;
+}
+
+function clearSessionCookie(req) {
+  const secure = isHttpsRequest(req) ? "; Secure" : "";
+  return `sf_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
 }
 
 function getClientIp(req) {
@@ -226,15 +238,57 @@ function verifyPassword(password, storedHash) {
   return expectedBuffer.length === actual.length && timingSafeEqual(actual, expectedBuffer);
 }
 
+function sanitizeSessionStore(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const now = Date.now();
+  const next = {};
+  for (const [token, session] of Object.entries(input)) {
+    if (!token || !session || typeof session !== "object") continue;
+    const userId = sanitizeId(session.userId);
+    const expiresAt = Number(session.expiresAt) || 0;
+    const createdAt = Number(session.createdAt) || 0;
+    if (!userId || expiresAt <= now) continue;
+    next[token] = {
+      userId,
+      createdAt: createdAt || now,
+      expiresAt
+    };
+  }
+  return next;
+}
+
+async function loadSessionStore() {
+  if (sessionStoreCache) return sessionStoreCache;
+  await ensureBaseDirs();
+  try {
+    const parsed = JSON.parse(await readFile(sessionsFile, "utf8"));
+    sessionStoreCache = sanitizeSessionStore(parsed);
+  } catch {
+    sessionStoreCache = {};
+  }
+  return sessionStoreCache;
+}
+
+async function persistSessionStore(nextStore) {
+  sessionStoreCache = sanitizeSessionStore(nextStore);
+  await ensureBaseDirs();
+  await writeFile(sessionsFile, `${JSON.stringify(sessionStoreCache, null, 2)}\n`, "utf8");
+  return sessionStoreCache;
+}
+
 async function ensureBaseDirs() {
   await mkdir(skillsRootDir, { recursive: true });
   await mkdir(workspaceRootDir, { recursive: true });
   await mkdir(systemDir, { recursive: true });
   await mkdir(userStateDir, { recursive: true });
   await mkdir(systemPromptsDir, { recursive: true });
+  await mkdir(sharedSystemPromptsDir, { recursive: true });
   await mkdir(credentialsDir, { recursive: true });
   if (!existsSync(usersFile)) {
     await writeFile(usersFile, "[]\n", "utf8");
+  }
+  if (!existsSync(sessionsFile)) {
+    await writeFile(sessionsFile, "{}\n", "utf8");
   }
 }
 
@@ -276,7 +330,19 @@ function userCredentialsFile(user) {
   return join(credentialsDir, `${user.id}.json`);
 }
 
-function systemPromptFilePath(id) {
+function userSystemPromptsDir(user) {
+  return join(systemPromptsDir, user.id);
+}
+
+function sharedSystemPromptFilePath(id) {
+  return join(sharedSystemPromptsDir, `${sanitizeId(id)}.json`);
+}
+
+function privateSystemPromptFilePath(user, id) {
+  return join(userSystemPromptsDir(user), `${sanitizeId(id)}.json`);
+}
+
+function legacySystemPromptFilePath(id) {
   return join(systemPromptsDir, `${sanitizeId(id)}.json`);
 }
 
@@ -286,6 +352,7 @@ async function ensureUserDirs(user) {
   await mkdir(userWorkspaceDir(user), { recursive: true });
   await mkdir(userRunsDir(user), { recursive: true });
   await mkdir(userChatJobsDir(user), { recursive: true });
+  await mkdir(userSystemPromptsDir(user), { recursive: true });
   if (!existsSync(userStateFile(user))) {
     await writeFile(userStateFile(user), "{}\n", "utf8");
   }
@@ -316,27 +383,38 @@ async function createUser(login, password) {
   return user;
 }
 
-function startSession(user) {
+async function startSession(user) {
   const token = randomBytes(24).toString("hex");
-  sessions.set(token, {
+  const sessions = await loadSessionStore();
+  sessions[token] = {
     userId: user.id,
+    createdAt: Date.now(),
     expiresAt: Date.now() + SESSION_TTL_SECONDS * 1000
-  });
+  };
+  await persistSessionStore(sessions);
   return token;
 }
 
-function destroySession(token) {
-  sessions.delete(token);
+async function destroySession(token) {
+  if (!token) return;
+  const sessions = await loadSessionStore();
+  if (!sessions[token]) return;
+  delete sessions[token];
+  await persistSessionStore(sessions);
 }
 
 async function getAuthenticatedUser(req) {
   const cookies = parseCookies(req);
   const token = cookies.sf_session;
-  if (!token || !sessions.has(token)) return null;
+  if (!token) return null;
 
-  const session = sessions.get(token);
+  const sessions = await loadSessionStore();
+  const session = sessions[token];
   if (!session || session.expiresAt < Date.now()) {
-    sessions.delete(token);
+    if (session) {
+      delete sessions[token];
+      await persistSessionStore(sessions);
+    }
     return null;
   }
 
@@ -560,10 +638,69 @@ async function loadCustomSkills(user) {
   return skills.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function sanitizeChatJobState(chatJob) {
+  if (!chatJob || typeof chatJob !== "object" || Array.isArray(chatJob)) return chatJob;
+  const next = { ...chatJob };
+  if (next.pendingRequest && typeof next.pendingRequest === "object" && !Array.isArray(next.pendingRequest)) {
+    const pendingRequest = { ...next.pendingRequest };
+    delete pendingRequest.auth;
+    delete pendingRequest.api_key;
+    delete pendingRequest.apiKey;
+    next.pendingRequest = pendingRequest;
+  }
+  if (next.resumeState && typeof next.resumeState === "object" && !Array.isArray(next.resumeState)) {
+    const resumeState = { ...next.resumeState };
+    delete resumeState.auth;
+    delete resumeState.api_key;
+    delete resumeState.apiKey;
+    next.resumeState = resumeState;
+  }
+  return next;
+}
+
+function sanitizeConversationMap(conversations) {
+  if (!conversations || typeof conversations !== "object" || Array.isArray(conversations)) return {};
+  const next = {};
+  for (const [conversationId, conversation] of Object.entries(conversations)) {
+    if (!conversation || typeof conversation !== "object" || Array.isArray(conversation)) continue;
+    const clonedConversation = { ...conversation };
+    if (Array.isArray(conversation.msgs)) {
+      clonedConversation.msgs = conversation.msgs.map((message) => {
+        if (!message || typeof message !== "object" || Array.isArray(message)) return message;
+        const nextMessage = { ...message };
+        if (message.chatJob) nextMessage.chatJob = sanitizeChatJobState(message.chatJob);
+        return nextMessage;
+      });
+    }
+    next[conversationId] = clonedConversation;
+  }
+  return next;
+}
+
+function sanitizeUserState(state) {
+  if (!state || typeof state !== "object" || Array.isArray(state)) return {};
+  const next = { ...state };
+  if (next.gc_cfg && typeof next.gc_cfg === "object" && !Array.isArray(next.gc_cfg)) {
+    next.gc_cfg = { ...next.gc_cfg };
+    delete next.gc_cfg.key;
+    delete next.gc_cfg.codexAuth;
+    delete next.gc_cfg.codexAuthRaw;
+    delete next.gc_cfg.auth;
+    delete next.gc_cfg.token;
+    delete next.gc_cfg.apiKey;
+    delete next.gc_cfg.api_key;
+    delete next.gc_cfg.gemini_api_key;
+  }
+  if (next.gc_convs) {
+    next.gc_convs = sanitizeConversationMap(next.gc_convs);
+  }
+  return next;
+}
+
 async function loadUserState(user) {
   await ensureUserDirs(user);
   try {
-    return JSON.parse(await readFile(userStateFile(user), "utf8"));
+    return sanitizeUserState(JSON.parse(await readFile(userStateFile(user), "utf8")));
   } catch {
     return {};
   }
@@ -571,7 +708,8 @@ async function loadUserState(user) {
 
 async function saveUserState(user, nextState) {
   await ensureUserDirs(user);
-  await writeFile(userStateFile(user), `${JSON.stringify(nextState, null, 2)}\n`, "utf8");
+  const safeState = sanitizeUserState(nextState);
+  await writeFile(userStateFile(user), `${JSON.stringify(safeState, null, 2)}\n`, "utf8");
 }
 
 async function loadUserCredentials(user) {
@@ -651,10 +789,82 @@ function normalizeCredentialPayload(input) {
   };
 }
 
+function normalizeSystemPromptScope(inputScope, existingScope = "private") {
+  const scope = String(inputScope || existingScope || "private").trim().toLowerCase();
+  return scope === "shared" ? "shared" : "private";
+}
+
+function systemPromptStorageKey(scope, id) {
+  return `${scope}:${sanitizeId(id)}`;
+}
+
+async function loadSystemPromptFromFile(filePath, scope, fallbackOwner = null) {
+  const ext = extname(filePath).toLowerCase();
+  let payload = null;
+  if (ext === ".json") {
+    payload = JSON.parse(await readFile(filePath, "utf8"));
+  } else if (ext === ".txt" || ext === ".md") {
+    const stem = filePath.split(/[/\\]/).pop().slice(0, -ext.length);
+    payload = {
+      id: sanitizeId(stem),
+      name: stem.replace(/[_-]+/g, " ").trim() || stem,
+      prompt: await readFile(filePath, "utf8")
+    };
+  }
+  if (!payload?.id || !payload?.name || !payload?.prompt) return null;
+  const normalizedScope = normalizeSystemPromptScope(payload.scope, scope);
+  const ownerUserId = sanitizeId(payload.owner_user_id || payload.created_by_id || fallbackOwner?.id || "");
+  const ownerLogin = String(payload.owner_login || payload.created_by || fallbackOwner?.login || "").trim();
+  return {
+    ...payload,
+    id: sanitizeId(payload.id),
+    name: String(payload.name || "").trim(),
+    prompt: String(payload.prompt || "").trim(),
+    scope: normalizedScope,
+    owner_user_id: ownerUserId || undefined,
+    owner_login: ownerLogin || undefined,
+    storage_key: systemPromptStorageKey(normalizedScope, payload.id)
+  };
+}
+
+async function readSystemPromptRecord(user, scope, id) {
+  const normalizedId = sanitizeId(id);
+  const normalizedScope = normalizeSystemPromptScope(scope);
+  if (!normalizedId) return null;
+  const filePath = normalizedScope === "shared"
+    ? sharedSystemPromptFilePath(normalizedId)
+    : privateSystemPromptFilePath(user, normalizedId);
+
+  if (existsSync(filePath)) {
+    const item = await loadSystemPromptFromFile(filePath, normalizedScope, normalizedScope === "private" ? user : null);
+    if (item) return { item, filePath };
+  }
+
+  if (normalizedScope === "shared") {
+    const legacyPath = legacySystemPromptFilePath(normalizedId);
+    if (existsSync(legacyPath)) {
+      const item = await loadSystemPromptFromFile(legacyPath, "shared");
+      if (item) return { item, filePath: legacyPath };
+    }
+  }
+
+  return null;
+}
+
+function assertSystemPromptPermission(user, existing) {
+  if (!existing) return;
+  if (existing.owner_user_id && existing.owner_user_id !== user.id) {
+    const error = new Error("Sem permissao para modificar este system prompt");
+    error.statusCode = 403;
+    throw error;
+  }
+}
+
 function normalizeSystemPromptPayload(input, user, existing = null) {
   if (!input || typeof input !== "object") {
     throw new Error("Invalid system prompt payload");
   }
+  const scope = normalizeSystemPromptScope(input.scope, existing?.scope || "private");
   const name = String(input.name || input.id || "").trim();
   const prompt = String(input.prompt || input.content || "").trim();
   const id = sanitizeId(input.id || name);
@@ -667,40 +877,50 @@ function normalizeSystemPromptPayload(input, user, existing = null) {
     id,
     name,
     prompt,
+    scope,
+    owner_user_id: existing?.owner_user_id || user.id,
+    owner_login: existing?.owner_login || user.login,
     created_at: existing?.created_at || now,
     created_by: existing?.created_by || user.login,
+    created_by_id: existing?.created_by_id || user.id,
     updated_at: now,
-    updated_by: user.login
+    updated_by: user.login,
+    updated_by_id: user.id,
+    storage_key: systemPromptStorageKey(scope, id)
   };
 }
 
-async function listSystemPrompts() {
-  await ensureBaseDirs();
-  const entries = await readdir(systemPromptsDir, { withFileTypes: true });
+async function listSystemPrompts(user) {
+  await ensureUserDirs(user);
   const items = [];
-  for (const entry of entries) {
-    if (!entry.isFile()) continue;
-    try {
-      const filePath = join(systemPromptsDir, entry.name);
-      const ext = extname(entry.name).toLowerCase();
-      let payload = null;
-      if (ext === ".json") {
-        payload = JSON.parse(await readFile(filePath, "utf8"));
-      } else if (ext === ".txt" || ext === ".md") {
-        const stem = entry.name.slice(0, -ext.length);
-        payload = {
-          id: sanitizeId(stem),
-          name: stem.replace(/[_-]+/g, " ").trim() || stem,
-          prompt: await readFile(filePath, "utf8")
-        };
+  const seen = new Set();
+  const sources = [
+    { dir: userSystemPromptsDir(user), scope: "private", fallbackOwner: user },
+    { dir: sharedSystemPromptsDir, scope: "shared", fallbackOwner: null },
+    { dir: systemPromptsDir, scope: "shared", fallbackOwner: null, legacyRoot: true }
+  ];
+
+  for (const source of sources) {
+    const entries = await readdir(source.dir, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      if (source.legacyRoot && entry.name.startsWith("_")) continue;
+      try {
+        const item = await loadSystemPromptFromFile(join(source.dir, entry.name), source.scope, source.fallbackOwner);
+        if (!item) continue;
+        const dedupeKey = item.storage_key || systemPromptStorageKey(item.scope, item.id);
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        items.push(item);
+      } catch (error) {
+        console.error(`Failed to load system prompt ${entry.name}:`, error.message);
       }
-      if (!payload?.id || !payload?.name || !payload?.prompt) continue;
-      items.push(payload);
-    } catch (error) {
-      console.error(`Failed to load system prompt ${entry.name}:`, error.message);
     }
   }
-  items.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"));
+  items.sort((a, b) => {
+    if (a.scope !== b.scope) return a.scope === "private" ? -1 : 1;
+    return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR");
+  });
   return items;
 }
 
@@ -1846,7 +2066,6 @@ async function runCodexChatJob(user, jobId, payload) {
     model: payload.model,
     reasoning: payload.reasoning || DEFAULT_CODEX_REASONING,
     context_message_count: contextItems.length,
-    auth: result.auth,
     payload: result.data
   };
   await writeFile(paths.result, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
@@ -1986,7 +2205,6 @@ async function handleChatApi(req, res, user) {
     model: normalized.model,
     reasoning: normalized.reasoning || DEFAULT_CODEX_REASONING,
     context_message_count: contextItems.length,
-    auth: result.auth,
     payload: result.data
   });
 }
@@ -2006,9 +2224,9 @@ async function handleAuthRoutes(req, res, url) {
     enforceRateLimit(`${getClientIp(req)}:auth:register`);
     const payload = await parseJsonBody(req);
     const user = await createUser(payload.login, payload.password);
-    const token = startSession(user);
+    const token = await startSession(user);
     sendJson(res, 200, { ok: true, user: { id: user.id, login: user.login } }, {
-      "Set-Cookie": sessionCookie(token)
+      "Set-Cookie": sessionCookie(req, token)
     });
     return;
   }
@@ -2025,17 +2243,17 @@ async function handleAuthRoutes(req, res, url) {
       return;
     }
     await ensureUserDirs(user);
-    const token = startSession(user);
+    const token = await startSession(user);
     sendJson(res, 200, { ok: true, user: { id: user.id, login: user.login } }, {
-      "Set-Cookie": sessionCookie(token)
+      "Set-Cookie": sessionCookie(req, token)
     });
     return;
   }
 
   if (req.method === "POST" && url.pathname === "/auth/logout") {
     const cookies = parseCookies(req);
-    if (cookies.sf_session) destroySession(cookies.sf_session);
-    sendJson(res, 200, { ok: true }, { "Set-Cookie": clearSessionCookie() });
+    if (cookies.sf_session) await destroySession(cookies.sf_session);
+    sendJson(res, 200, { ok: true }, { "Set-Cookie": clearSessionCookie(req) });
     return;
   }
 
@@ -2136,33 +2354,45 @@ async function handleSystemPromptsApi(req, res, url, user) {
   await ensureBaseDirs();
 
   if (req.method === "GET" && url.pathname === "/api/system-prompts") {
-    sendJson(res, 200, { items: await listSystemPrompts() });
+    sendJson(res, 200, { items: await listSystemPrompts(user) });
     return;
   }
 
   if (req.method === "POST" && url.pathname === "/api/system-prompts") {
     const payload = await parseJsonBody(req);
-    const filePath = systemPromptFilePath(payload.id || payload.name);
-    const existing = existsSync(filePath) ? JSON.parse(await readFile(filePath, "utf8")) : null;
+    const scope = normalizeSystemPromptScope(payload.scope);
+    const existingRecord = await readSystemPromptRecord(user, scope, payload.id || payload.name);
+    const existing = existingRecord?.item || null;
+    assertSystemPromptPermission(user, existing);
     const next = normalizeSystemPromptPayload(payload, user, existing);
+    const filePath = scope === "shared"
+      ? sharedSystemPromptFilePath(next.id)
+      : privateSystemPromptFilePath(user, next.id);
+    if (existingRecord?.filePath && existingRecord.filePath !== filePath && existsSync(existingRecord.filePath)) {
+      await unlink(existingRecord.filePath).catch(() => {});
+    }
     await writeFile(filePath, `${JSON.stringify(next, null, 2)}\n`, "utf8");
     sendJson(res, 200, { ok: true, item: next });
     return;
   }
 
   if (req.method === "DELETE" && url.pathname.startsWith("/api/system-prompts/")) {
-    const id = sanitizeId(url.pathname.slice("/api/system-prompts/".length));
+    const ref = String(url.pathname.slice("/api/system-prompts/".length) || "");
+    const [rawScope, rawId] = ref.includes("/") ? ref.split("/", 2) : ["private", ref];
+    const scope = normalizeSystemPromptScope(rawScope);
+    const id = sanitizeId(rawId);
     if (!id) {
       sendJson(res, 400, { error: "System prompt id is required" });
       return;
     }
-    const filePath = systemPromptFilePath(id);
-    if (!existsSync(filePath)) {
+    const existingRecord = await readSystemPromptRecord(user, scope, id);
+    if (!existingRecord?.item || !existingRecord?.filePath) {
       sendJson(res, 404, { error: "System prompt not found" });
       return;
     }
-    await unlink(filePath);
-    sendJson(res, 200, { ok: true, id });
+    assertSystemPromptPermission(user, existingRecord.item);
+    await unlink(existingRecord.filePath);
+    sendJson(res, 200, { ok: true, id, scope });
     return;
   }
 
