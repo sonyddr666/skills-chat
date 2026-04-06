@@ -28,7 +28,65 @@
             global.setTimeout(() => toastEl.classList.remove('show'), 2800);
         }
 
+        function isChatNearBottom(chatEl, threshold = 180) {
+            if (!chatEl) return true;
+            return (chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight) <= threshold;
+        }
+
+        function updateScrollBottomButton() {
+            const chatEl = global.document.getElementById('chat');
+            const buttonEl = global.document.getElementById('scroll-bottom-btn');
+            if (!chatEl || !buttonEl) return;
+            const distance = chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight;
+            buttonEl.classList.toggle('show', distance > 220);
+            deps.setChatStickToBottom(distance <= 180);
+        }
+
+        function queueChatScrollToBottom(force = false) {
+            const chatEl = global.document.getElementById('chat');
+            if (!chatEl) return;
+            if (force) deps.setChatStickToBottom(true);
+            if (!force && !deps.getChatStickToBottom()) return;
+            if (deps.getChatScrollRaf()) global.cancelAnimationFrame(deps.getChatScrollRaf());
+            const rafId = global.requestAnimationFrame(() => {
+                global.requestAnimationFrame(() => {
+                    const current = global.document.getElementById('chat');
+                    if (!current) return;
+                    current.scrollTop = current.scrollHeight;
+                    updateScrollBottomButton();
+                    deps.setChatScrollRaf(0);
+                });
+            });
+            deps.setChatScrollRaf(rafId);
+        }
+
+        function restoreChatScrollPosition(prevTop, prevScrollHeight, prevClientHeight) {
+            global.requestAnimationFrame(() => {
+                const chatEl = global.document.getElementById('chat');
+                if (!chatEl) return;
+                const previousGap = Math.max(0, prevScrollHeight - prevTop - prevClientHeight);
+                const nextTop = Math.max(0, chatEl.scrollHeight - chatEl.clientHeight - previousGap);
+                chatEl.scrollTop = nextTop;
+                updateScrollBottomButton();
+            });
+        }
+
+        function scrollEnd(force = false) {
+            queueChatScrollToBottom(force);
+        }
+
+        function autoH(el) {
+            el.style.height = '0';
+            el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+        }
+
         return {
+            autoH,
+            isChatNearBottom,
+            updateScrollBottomButton,
+            queueChatScrollToBottom,
+            restoreChatScrollPosition,
+            scrollEnd,
             renderSidebar,
             toast
         };

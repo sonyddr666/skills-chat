@@ -6529,6 +6529,10 @@ return await createBackendApprovalRequest({
             const uiRenderRuntime = window.SkillFlowUiRender.init({
                 getConversations: () => convs,
                 getActiveId: () => activeId,
+                getChatStickToBottom: () => chatStickToBottom,
+                setChatStickToBottom: (next) => { chatStickToBottom = !!next; },
+                getChatScrollRaf: () => chatScrollRaf,
+                setChatScrollRaf: (next) => { chatScrollRaf = Number(next) || 0; },
                 conversationTitle,
                 conversationTs,
                 esc
@@ -6912,56 +6916,17 @@ return await createBackendApprovalRequest({
             let chatStickToBottom = true;
             let chatScrollRaf = 0;
 
-            function isChatNearBottom(c, threshold = 180) {
-                if (!c) return true;
-                return (c.scrollHeight - c.scrollTop - c.clientHeight) <= threshold;
-            }
+            function isChatNearBottom(c, threshold = 180) { return uiRenderRuntime.isChatNearBottom(c, threshold); }
 
-            function updateScrollBottomButton() {
-                const c = document.getElementById('chat');
-                const btn = document.getElementById('scroll-bottom-btn');
-                if (!c || !btn) return;
-                const distance = c.scrollHeight - c.scrollTop - c.clientHeight;
-                btn.classList.toggle('show', distance > 220);
-                chatStickToBottom = distance <= 180;
-            }
+            function updateScrollBottomButton() { return uiRenderRuntime.updateScrollBottomButton(); }
 
-            function queueChatScrollToBottom(force = false) {
-                const c = document.getElementById('chat');
-                if (!c) return;
-                if (force) chatStickToBottom = true;
-                if (!force && !chatStickToBottom) return;
-                if (chatScrollRaf) cancelAnimationFrame(chatScrollRaf);
-                chatScrollRaf = requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        const current = document.getElementById('chat');
-                        if (!current) return;
-                        current.scrollTop = current.scrollHeight;
-                        updateScrollBottomButton();
-                        chatScrollRaf = 0;
-                    });
-                });
-            }
+            function queueChatScrollToBottom(force = false) { return uiRenderRuntime.queueChatScrollToBottom(force); }
 
-            function restoreChatScrollPosition(prevTop, prevScrollHeight, prevClientHeight) {
-                requestAnimationFrame(() => {
-                    const c = document.getElementById('chat');
-                    if (!c) return;
-                    const previousGap = Math.max(0, prevScrollHeight - prevTop - prevClientHeight);
-                    const nextTop = Math.max(0, c.scrollHeight - c.clientHeight - previousGap);
-                    c.scrollTop = nextTop;
-                    updateScrollBottomButton();
-                });
-            }
+            function restoreChatScrollPosition(prevTop, prevScrollHeight, prevClientHeight) { return uiRenderRuntime.restoreChatScrollPosition(prevTop, prevScrollHeight, prevClientHeight); }
 
-            function scrollEnd(force = false) {
-                queueChatScrollToBottom(force);
-            }
+            function scrollEnd(force = false) { return uiRenderRuntime.scrollEnd(force); }
             function toast(msg) { return uiRenderRuntime.toast(msg); }
-            function autoH(el) {
-                el.style.height = '0';
-                el.style.height = Math.min(el.scrollHeight, 200) + 'px';
-            }
+            function autoH(el) { return uiRenderRuntime.autoH(el); }
 
             // â”€ SEND â”€
             async function send() {
