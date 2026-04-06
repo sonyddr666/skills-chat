@@ -65,7 +65,7 @@
                 async connect(apiKey, model) {
                     if (this.active) this.disconnect();
                     this.sessionModel = model;
-                    liveSetHUD('processing', '🔄 Conectando ao Gemini Live…');
+                    liveSetHUD('processing', 'Conectando ao Gemini Live...');
 
                     const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${apiKey}`;
 
@@ -135,7 +135,7 @@
                                 reject(error);
                             }
                             this.disconnect();
-                            deps.toast('❌ Erro na conexão Live');
+                            deps.toast('Erro na conexao Live');
                         };
 
                         ws.onclose = (event) => {
@@ -145,7 +145,7 @@
                                 deps.setLiveMode(false);
                                 liveSetHUD('idle', '');
                                 global.document.getElementById('live-btn')?.classList.remove('on');
-                                deps.toast('🔴 Sessão Live encerrada');
+                                deps.toast('Sessao Live encerrada');
                             }
                             if (!settled) {
                                 settled = true;
@@ -166,7 +166,7 @@
                 handleMessage(msg, onSetup) {
                     if (msg.setupComplete) {
                         this.active = true;
-                        liveSetHUD('listening', '🎙 Gemini Live Ativo — Fale!');
+                        liveSetHUD('listening', 'Gemini Live ativo - fale!');
                         this.startAudioCapture();
                         this.startPreviewTranscription();
                         if (onSetup) onSetup();
@@ -188,7 +188,7 @@
                             this.liveUserBubble = null;
                             this.clearInputPreview();
                             this.startPreviewTranscription();
-                            liveSetHUD('listening', '🎙 Interrompido — Ouvindo…');
+                            liveSetHUD('listening', 'Interrompido - ouvindo...');
                             return;
                         }
 
@@ -196,7 +196,7 @@
                         for (const part of parts) {
                             if (part.inlineData?.mimeType?.includes('audio/pcm')) {
                                 this.stopPreviewTranscription({ preserveDisplay: true });
-                                liveSetHUD('playing', '🔊 Respondendo…');
+                                liveSetHUD('playing', 'Respondendo...');
                                 this.queueAudio(part.inlineData.data);
                             }
                         }
@@ -215,7 +215,7 @@
                                 if (chatEl) {
                                     const div = global.document.createElement('div');
                                     div.className = 'row user animate-in';
-                                    div.innerHTML = `<div class="av">👤</div><div style="flex:1; max-width: calc(100% - 42px);"><div class="bub"><p class="live-user-text"></p></div><div class="meta"><span>${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span> <span style="background:#ff4757;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700">LIVE</span></div></div>`;
+                                    div.innerHTML = `<div class="av">User</div><div style="flex:1; max-width: calc(100% - 42px);"><div class="bub"><p class="live-user-text"></p></div><div class="meta"><span>${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span> <span style="background:#ff4757;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700">LIVE</span></div></div>`;
                                     chatEl.appendChild(div);
                                     this.liveUserBubble = div.querySelector('.live-user-text');
                                     chatEl.scrollTop = chatEl.scrollHeight;
@@ -240,7 +240,7 @@
                                 if (chatEl) {
                                     const div = global.document.createElement('div');
                                     div.className = 'row model animate-in';
-                                    div.innerHTML = `<div class="av">✦</div><div style="flex:1; max-width: calc(100% - 42px);"><div class="bub"><p class="live-model-text"></p></div><div class="meta"><span>${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span> <span style="color:var(--accent2)">${this.sessionModel || 'gemini-3.1-flash-live-preview'}</span> <span style="background:#ff4757;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700">LIVE</span></div></div>`;
+                                    div.innerHTML = `<div class="av">SF</div><div style="flex:1; max-width: calc(100% - 42px);"><div class="bub"><p class="live-model-text"></p></div><div class="meta"><span>${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span> <span style="color:var(--accent2)">${this.sessionModel || 'gemini-3.1-flash-live-preview'}</span> <span style="background:#ff4757;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700">LIVE</span></div></div>`;
                                     chatEl.appendChild(div);
                                     this.liveStreamingEl = div.querySelector('.live-model-text');
                                     chatEl.scrollTop = chatEl.scrollHeight;
@@ -268,7 +268,7 @@
                     if (!fcs.length) return;
 
                     const names = fcs.map(fc => fc.name).join(', ');
-                    liveSetHUD('processing', `⚙ ${names}`);
+                    liveSetHUD('processing', `Executando ${names}`);
 
                     fcs.forEach(fc => {
                         this.pendingTrace.push(deps.createTraceStep('tool_call', {
@@ -303,11 +303,10 @@
                         this.ws.send(JSON.stringify(response));
                     }
                 },
-
                 sendText(text) {
                     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
                     this.ws.send(JSON.stringify({ realtimeInput: { text } }));
-                    liveSetHUD('processing', '⏳ Processando…');
+                    liveSetHUD('processing', 'Processando...');
                 },
 
                 sendTurn({ text = '', images = [], files = [] } = {}) {
@@ -342,10 +341,10 @@
                         }));
                     }
 
-                    if (rejectedImages.length) deps.toast('⚠ No Gemini 3.1 Live, envie imagens JPG ou PNG.');
-                    if (files?.length) deps.toast('⚠ Arquivos anexados fora de imagem não são suportados no Gemini 3.1 Live.');
+                    if (rejectedImages.length) deps.toast('No Gemini 3.1 Live, envie imagens JPG ou PNG.');
+                    if (files?.length) deps.toast('Arquivos anexados fora de imagem nao sao suportados no Gemini 3.1 Live.');
                     if (!text && !supportedImages.length) return;
-                    liveSetHUD('processing', '⏳ Processando…');
+                    liveSetHUD('processing', 'Processando...');
                 },
 
                 updateScreenShareUi() {
@@ -354,7 +353,7 @@
 
                 async startScreenShare(intervalMs = 5000) {
                     if (!this.active || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
-                        deps.toast('⚠ Ative o Gemini Live antes de compartilhar a tela.');
+                        deps.toast('Ative o Gemini Live antes de compartilhar a tela.');
                         return false;
                     }
                     if (this.screenShareActive) return true;
@@ -386,7 +385,7 @@
                     this.screenShareInterval = global.setInterval(() => {
                         this.sendScreenFrame();
                     }, intervalMs);
-                    deps.toast('🖥️ Tela compartilhada com o Gemini Live.');
+                    deps.toast('Tela compartilhada com o Gemini Live.');
                     return true;
                 },
 
@@ -439,7 +438,7 @@
                     this.screenShareCanvas = null;
                     this.screenShareActive = false;
                     this.updateScreenShareUi();
-                    if (!options.silent) deps.toast('🛑 Compartilhamento de tela encerrado.');
+                    if (!options.silent) deps.toast('Compartilhamento de tela encerrado.');
                 },
 
                 onTurnComplete() {
@@ -459,7 +458,7 @@
                         const userMsgs = convs[activeId].msgs.filter(m => m.role === 'user');
                         if (userMsgs.length === 1) {
                             const title = this.pendingUserTranscript.trim();
-                            convs[activeId].title = title.slice(0, 48) + (title.length > 48 ? '…' : '');
+                    convs[activeId].title = title.slice(0, 48) + (title.length > 48 ? '...' : '');
                         }
                     }
                     this.pendingUserTranscript = '';
@@ -497,7 +496,7 @@
                     global.setTimeout(() => {
                         if (this.active) {
                             this.clearInputPreview();
-                            liveSetHUD('listening', '🎙 Ouvindo…');
+                            liveSetHUD('listening', 'Ouvindo...');
                             this.startPreviewTranscription();
                         }
                     }, remaining * 1000 + 300);
@@ -680,7 +679,7 @@
                         this.sourceNode = source;
                     } catch (error) {
                         console.error('[GeminiLive] Audio capture error:', error);
-                        deps.toast('⚠ Mic: ' + error.message);
+                    deps.toast('Mic: ' + error.message);
                         this.disconnect();
                     }
                 },
@@ -765,13 +764,13 @@
                 }
                 const apiKey = global.document.getElementById('api-in')?.value?.trim() || '';
                 if (!apiKey) {
-                    if (!options.silent) deps.toast('⚠ Insira sua API Key!');
+                    if (!options.silent) deps.toast('Insira sua API Key!');
                     return false;
                 }
 
                 const isSecure = global.location.protocol === 'https:' || global.location.hostname === 'localhost' || global.location.hostname === '127.0.0.1';
                 if (!isSecure) {
-                    if (!options.silent) deps.toast('⚠ Live Mode requer HTTPS.');
+                    if (!options.silent) deps.toast('Live Mode requer HTTPS.');
                     return false;
                 }
                 if (!await deps.ensureMicPermission()) return false;
@@ -783,29 +782,29 @@
                     global.document.getElementById('live-btn')?.classList.add('on');
                     if (!getGeminiLive()) createGeminiLive();
                     await getGeminiLive().connect(apiKey, model);
-                    if (!options.silent) deps.toast('✓ Gemini Live conectado!');
+                    if (!options.silent) deps.toast('Gemini Live conectado!');
                     return true;
                 } catch (error) {
                     deps.setLiveMode(false);
                     global.document.getElementById('live-btn')?.classList.remove('on');
                     console.error('[GeminiLive] Connect failed:', error);
-                    if (!options.silent) deps.toast('❌ Falha ao conectar: ' + (error.message || 'erro desconhecido'));
+                    if (!options.silent) deps.toast('Falha ao conectar: ' + (error.message || 'erro desconhecido'));
                     return false;
                 }
             }
 
             if (!global.window.SpeechRecognition && !global.window.webkitSpeechRecognition) {
-                if (!options.silent) deps.toast('⚠ Live Mode precisa de Chrome ou Edge.');
+                if (!options.silent) deps.toast('Live Mode precisa de Chrome ou Edge.');
                 return false;
             }
             const isSecure = global.location.protocol === 'https:' || global.location.hostname === 'localhost' || global.location.hostname === '127.0.0.1';
             if (!isSecure) {
-                if (!options.silent) deps.toast('⚠ Live Mode requer HTTPS. Mic nao funciona em HTTP.');
+                if (!options.silent) deps.toast('Live Mode requer HTTPS. Mic nao funciona em HTTP.');
                 return false;
             }
             const voice = global.document.getElementById('tts-voice-sel')?.value;
             if (!voice) {
-                if (!options.silent) deps.toast('⚠ Selecione uma voz em Configuracoes > TTS antes de ativar o Live Mode.');
+                if (!options.silent) deps.toast('Selecione uma voz em Configuracoes > TTS antes de ativar o Live Mode.');
                 return false;
             }
             if (!await deps.ensureMicPermission()) return false;
@@ -827,11 +826,11 @@
         async function toggleLiveScreenShare() {
             const model = global.document.getElementById('model-sel')?.value || '';
             if (!deps.isLiveModel(model)) {
-                deps.toast('⚠ Compartilhamento de tela esta disponivel so no Gemini Live 3.1.');
+                deps.toast('Compartilhamento de tela esta disponivel so no Gemini Live 3.1.');
                 return;
             }
             if (!getGeminiLive()?.active) {
-                deps.toast('⚠ Ative o Gemini Live antes de compartilhar a tela.');
+                deps.toast('Ative o Gemini Live antes de compartilhar a tela.');
                 return;
             }
             if (getGeminiLive().screenShareActive) {
@@ -842,7 +841,7 @@
                 await getGeminiLive().startScreenShare(5000);
             } catch (error) {
                 console.error('[GeminiLive] Screen share error:', error);
-                deps.toast('⚠ Falha ao compartilhar a tela: ' + (error.message || 'erro desconhecido'));
+                deps.toast('Falha ao compartilhar a tela: ' + (error.message || 'erro desconhecido'));
                 getGeminiLive().stopScreenShare({ silent: true });
             }
         }
@@ -868,7 +867,7 @@
             deps.setLiveSilenceStart(null);
 
             livePauseSTT();
-            liveSetHUD('processing', '⏳ Processando…');
+            liveSetHUD('processing', 'Processando...');
 
             await deps.send();
 
@@ -877,7 +876,7 @@
             const msgs = deps.getConversations()[deps.getActiveId()]?.msgs || [];
             const lastIdx = msgs.length - 1;
             if (msgs[lastIdx]?.role === 'model' && msgs[lastIdx]?.text) {
-                liveSetHUD('playing', '🔊 Respondendo…');
+                liveSetHUD('playing', 'Respondendo...');
                 await liveSpeak(lastIdx);
             } else {
                 liveResumeListening();
@@ -896,7 +895,7 @@
             }
 
             if (status === 'interrupted') {
-                liveSetHUD('listening', '🎙 Interrompido, pode falar');
+                liveSetHUD('listening', 'Interrompido, pode falar');
                 global.setTimeout(() => liveResumeListening(), 120);
                 return 'interrupted';
             }
@@ -922,7 +921,7 @@
                     deps.getLiveRecognition().start();
                 } catch (_) {}
             }
-            liveSetHUD('listening', '🎙 Ouvindo…');
+            liveSetHUD('listening', 'Ouvindo...');
         }
 
         function liveStop(options = {}) {
@@ -947,7 +946,7 @@
             deps.setMicStreamEnabled(true);
             liveSetHUD('idle', '');
             global.document.getElementById('live-btn')?.classList.remove('on');
-            if (!options.silent) deps.toast('⏹ Live Mode encerrado.');
+            if (!options.silent) deps.toast('Live Mode encerrado.');
         }
 
         return {

@@ -17,7 +17,7 @@
             list.innerHTML = ids.map(id => `
     <div class="ci ${id === activeId ? 'active' : ''}" data-cid="${id}" onclick="setActive('${id}')" ondblclick="event.stopPropagation();renameConv('${id}')">
       <span class="ci-title">${deps.esc(deps.conversationTitle(convs[id]))}</span>
-      <button class="ci-del" onclick="delConv('${id}',event)" title="Deletar">✕</button>
+      <button class="ci-del" onclick="delConv('${id}',event)" title="Deletar">x</button>
     </div>`).join('');
         }
 
@@ -42,14 +42,14 @@
             let html = pendingImages.map((img, i) => `
     <div class="img-preview">
       <img src="${img.url}">
-      <button class="rm-btn" onclick="removeImage(${i})">âœ•</button>
+      <button class="rm-btn" onclick="removeImage(${i})">x</button>
     </div>
   `).join('');
             html += pendingFiles.map((file, i) => `
     <div class="file-preview">
-      <span class="file-icon">${String(file?.mimeType || '').toLowerCase() === 'application/pdf' ? 'ðŸ“„' : 'ðŸ“'}</span>
+      <span class="file-icon">${String(file?.mimeType || '').toLowerCase() === 'application/pdf' ? 'PDF' : 'Arquivo'}</span>
       <span>${deps.esc(file?.name || 'arquivo')}</span>
-      <button class="rm-btn" onclick="removeFile(${i})">âœ•</button>
+      <button class="rm-btn" onclick="removeFile(${i})">x</button>
     </div>
   `).join('');
             container.innerHTML = html;
