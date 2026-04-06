@@ -40,6 +40,7 @@ Grant de conversa:
 - aprovado por 24 horas
 - pode liberar `*` ou lista de acoes
 - nao e consumido no primeiro uso; ele registra uso e continua valido ate expirar
+- pode ser revogado manualmente pela UI antes de expirar
 
 ### 2. Enforcement real no servidor
 
@@ -81,6 +82,10 @@ Mudancas na UI:
 - `request_human_approval` cria approval real no backend
 - tools sensiveis aceitam `approval_id`
 - deletes de skill pela UI criam, aprovam e consomem approval antes da exclusao
+- botao dedicado de approvals no topo
+- painel listando approvals, grants, status, expiracao e usos
+- banner da conversa atual quando existe grant ativo
+- botao de revogar grant manualmente
 
 ## Validacao
 

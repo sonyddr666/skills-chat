@@ -49,6 +49,7 @@ Servidor padrao:
 - approvals ficam auditaveis e sao consumidos quando usados
 - `exec` ganhou perfil de comando, auditoria, timeout por perfil e restricoes extras de policy
 - agora tambem existe grant de conversa por 24h para aprovar acoes sensiveis dessa conversa
+- a UI agora mostra painel de approvals, grant ativo da conversa e revogacao manual
 
 ## Flags de Ambiente
 

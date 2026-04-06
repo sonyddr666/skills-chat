@@ -3119,13 +3119,15 @@ async function handleApprovalsApi(req, res, url, user) {
   }
 
   const action = parts[1] || "";
-  if (req.method === "POST" && (action === "approve" || action === "reject")) {
+  if (req.method === "POST" && (action === "approve" || action === "reject" || action === "revoke")) {
     if (approval.status !== "pending") {
-      sendJson(res, 409, { error: `approval nao pode mudar de status: ${approval.status}` });
-      return;
+      if (action !== "revoke" || !["approved", "pending"].includes(approval.status)) {
+        sendJson(res, 409, { error: `approval nao pode mudar de status: ${approval.status}` });
+        return;
+      }
     }
     const now = new Date().toISOString();
-    const nextStatus = action === "approve" ? "approved" : "rejected";
+    const nextStatus = action === "approve" ? "approved" : (action === "reject" ? "rejected" : "revoked");
     const next = {
       ...approval,
       status: nextStatus,

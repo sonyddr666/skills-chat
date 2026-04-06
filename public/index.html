@@ -1330,6 +1330,24 @@
             color: var(--accent2);
         }
 
+        #approvals-btn {
+            background: var(--s2);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            border-radius: 8px;
+            padding: 7px 14px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all .2s;
+            white-space: nowrap;
+        }
+
+        #approvals-btn:hover,
+        #approvals-btn.on {
+            border-color: var(--accent2);
+            color: var(--accent2);
+        }
+
         #plugin-panel {
             background: var(--surface);
             border-bottom: 1px solid var(--border);
@@ -1403,6 +1421,150 @@
             gap: 0;
             flex: 1;
             overflow: hidden;
+        }
+
+        #approvals-panel {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: none;
+            flex-direction: column;
+            max-height: 45vh;
+            overflow: hidden;
+        }
+
+        #approvals-panel.on {
+            display: flex;
+        }
+
+        #approvals-panel-head {
+            padding: 10px 16px 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        #approvals-panel-head span {
+            font-size: 11px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            font-weight: 600;
+        }
+
+        #approvals-list {
+            padding: 10px 14px 14px;
+            overflow-y: auto;
+            display: grid;
+            gap: 10px;
+        }
+
+        .approval-item {
+            border: 1px solid var(--border);
+            background: var(--s2);
+            border-radius: 12px;
+            padding: 10px 12px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .approval-item.current-conv {
+            border-color: var(--accent2);
+            box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent2) 35%, transparent);
+        }
+
+        .approval-item-head {
+            display: flex;
+            gap: 8px;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .approval-item-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .approval-item-meta {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .approval-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: .3px;
+        }
+
+        .approval-pill.approved { color: #0f8a4b; border-color: rgba(15,138,75,.35); }
+        .approval-pill.pending { color: #c78600; border-color: rgba(199,134,0,.35); }
+        .approval-pill.rejected, .approval-pill.revoked, .approval-pill.expired { color: var(--danger); border-color: rgba(220,80,80,.35); }
+        .approval-pill.consumed { color: var(--accent2); border-color: rgba(59,130,246,.35); }
+
+        .approval-item-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .approval-mini-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            border-radius: 8px;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+
+        .approval-mini-btn:hover {
+            border-color: var(--accent2);
+            color: var(--accent2);
+        }
+
+        #conversation-approval-banner {
+            display: none;
+            margin: 0 0 8px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: linear-gradient(180deg, color-mix(in srgb, var(--accent2) 9%, var(--surface)), var(--surface));
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        #conversation-approval-banner.on {
+            display: flex;
+        }
+
+        .conversation-approval-copy {
+            display: grid;
+            gap: 4px;
+        }
+
+        .conversation-approval-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .conversation-approval-meta {
+            font-size: 11px;
+            color: var(--muted);
         }
 
         /* Plugin list */
@@ -2541,6 +2703,7 @@
 
                 <button id="cfg-btn" onclick="toggleCfg()">âš™ Config</button>
                 <button id="plugin-btn" onclick="togglePlugins()" title="Skills e plugins">ðŸ”Œ Skills</button>
+                <button id="approvals-btn" onclick="toggleApprovalsPanel()" title="Approvals e grants">ðŸ›¡ï¸ Approvals</button>
                 <button id="theme-btn" onclick="toggleTheme()" title="Alternar Tema">ðŸŒ™</button>
                 <span class="live-model-badge" id="live-model-badge">LIVE</span>
                 <button id="tb-expand" onclick="document.getElementById('topbar').classList.toggle('tb-expanded')" title="Mais opÃ§Ãµes">â‹¯</button>
@@ -2657,6 +2820,17 @@
                 </div>
             </div>
 
+            <div id="approvals-panel">
+                <div id="approvals-panel-head">
+                    <span>Approvals, grants e auditoria</span>
+                    <div class="plugin-panel-btns">
+                        <button class="approval-mini-btn" type="button" onclick="refreshApprovalsPanel()">â†» Atualizar</button>
+                        <button id="approvals-close" onclick="toggleApprovalsPanel()">âœ•</button>
+                    </div>
+                </div>
+                <div id="approvals-list"></div>
+            </div>
+
             <!-- CHAT -->
             <div id="chat">
                 <div id="empty">
@@ -2677,6 +2851,16 @@
             <!-- INPUT -->
             <div id="img-preview-container"></div>
             <div id="ibar-container">
+                <div id="conversation-approval-banner">
+                    <div class="conversation-approval-copy">
+                        <div class="conversation-approval-title">Esta conversa tem grant ativo</div>
+                        <div class="conversation-approval-meta" id="conversation-approval-meta">Acoes sensiveis aprovadas temporariamente.</div>
+                    </div>
+                    <div class="approval-item-actions">
+                        <button type="button" class="approval-mini-btn" onclick="refreshApprovalsPanel()">Ver approvals</button>
+                        <button type="button" class="approval-mini-btn" onclick="revokeCurrentConversationGrant()">Revogar grant</button>
+                    </div>
+                </div>
                 <div id="ibar-wrap">
                     <div id="ibar">
                         <input type="file" id="file-in"
@@ -2855,6 +3039,7 @@
                 }
             };
             const conversationApprovalGrants = new Map();
+            let approvalItems = [];
             const GEMINI_THINKING_OPTIONS = [
                 { value: '', label: 'auto (padrao)' },
                 { value: 'minimal', label: 'minimal' },
@@ -3243,6 +3428,13 @@
                 return data.item || null;
             }
 
+            async function revokeBackendApprovalRequest(id) {
+                const data = await fetchLocalJson('/api/approvals/' + encodeURIComponent(id) + '/revoke', {
+                    method: 'POST'
+                });
+                return data.item || null;
+            }
+
             function setConversationGrantCache(conversationId, grant) {
                 const key = String(conversationId || '').trim();
                 if (!key || !grant) return;
@@ -3269,17 +3461,123 @@
                 try {
                     const data = await fetchLocalJson('/api/approvals');
                     conversationApprovalGrants.clear();
-                    const items = Array.isArray(data.items) ? data.items : [];
-                    items.forEach(item => {
+                    approvalItems = Array.isArray(data.items) ? data.items : [];
+                    approvalItems.forEach(item => {
                         if (item?.kind !== 'conversation_grant') return;
                         if (item?.status !== 'approved') return;
                         if (!item?.conversation_id) return;
                         if (item?.expires_at && Date.parse(item.expires_at) <= Date.now()) return;
                         setConversationGrantCache(item.conversation_id, item);
                     });
+                    renderApprovalsPanel();
+                    renderConversationApprovalBanner();
                 } catch (error) {
                     console.warn('[Approvals] Falha ao carregar grants da conversa:', error?.message || error);
                 }
+            }
+
+            function approvalStatusLabel(status) {
+                const value = String(status || '').trim().toLowerCase();
+                if (value === 'approved') return 'Aprovado';
+                if (value === 'pending') return 'Pendente';
+                if (value === 'rejected') return 'Rejeitado';
+                if (value === 'revoked') return 'Revogado';
+                if (value === 'consumed') return 'Consumido';
+                if (value === 'expired') return 'Expirado';
+                return value || 'desconhecido';
+            }
+
+            function formatApprovalExpiry(value) {
+                const ts = Date.parse(value || '');
+                if (!Number.isFinite(ts)) return 'sem expiracao';
+                return new Date(ts).toLocaleString('pt-BR');
+            }
+
+            function currentConversationGrant() {
+                const conversationId = String(activeId || '').trim();
+                if (!conversationId) return null;
+                return approvalItems.find(item =>
+                    item?.kind === 'conversation_grant'
+                    && item?.status === 'approved'
+                    && item?.conversation_id === conversationId
+                    && (!item?.expires_at || Date.parse(item.expires_at) > Date.now())
+                ) || null;
+            }
+
+            function renderConversationApprovalBanner() {
+                const banner = document.getElementById('conversation-approval-banner');
+                const meta = document.getElementById('conversation-approval-meta');
+                if (!banner || !meta) return;
+                const grant = currentConversationGrant();
+                if (!grant) {
+                    banner.classList.remove('on');
+                    return;
+                }
+                const allowed = Array.isArray(grant.allowed_actions) ? grant.allowed_actions.join(', ') : '*';
+                meta.textContent = `Valido ate ${formatApprovalExpiry(grant.expires_at)}. Acoes: ${allowed}. Usos: ${grant.used_count || 0}.`;
+                banner.classList.add('on');
+            }
+
+            function renderApprovalsPanel() {
+                const list = document.getElementById('approvals-list');
+                if (!list) return;
+                const currentConversationId = String(activeId || '').trim();
+                if (!approvalItems.length) {
+                    list.innerHTML = `<div class="approval-item"><div class="approval-item-title">Nenhum approval registrado</div><div class="approval-item-meta">Quando uma acao sensivel precisar de autorizacao, ela aparecera aqui.</div></div>`;
+                    return;
+                }
+                list.innerHTML = approvalItems.map(item => {
+                    const isCurrentConversation = currentConversationId && item?.conversation_id === currentConversationId;
+                    const canRevoke = item?.kind === 'conversation_grant' && ['approved', 'pending'].includes(String(item?.status || '').toLowerCase());
+                    const allowed = Array.isArray(item?.allowed_actions) ? item.allowed_actions.join(', ') : (item?.action || '');
+                    return `<div class="approval-item ${isCurrentConversation ? 'current-conv' : ''}">
+  <div class="approval-item-head">
+    <div>
+      <div class="approval-item-title">${esc(item.kind === 'conversation_grant' ? 'Grant da conversa' : item.action || 'Approval')}</div>
+      <div class="approval-item-meta">
+        <span class="approval-pill ${esc(String(item.status || '').toLowerCase())}">${esc(approvalStatusLabel(item.status))}</span>
+        <span>${esc(item.id || '')}</span>
+        ${item.conversation_id ? `<span>conversa ${esc(item.conversation_id)}</span>` : ''}
+      </div>
+    </div>
+    <div class="approval-item-meta">${esc(item.risk || 'medio')}</div>
+  </div>
+  <div class="approval-item-meta">${esc(item.reason || '')}</div>
+  <div class="approval-item-meta">Acoes: ${esc(allowed || item.action || '')}</div>
+  <div class="approval-item-meta">Expira em: ${esc(formatApprovalExpiry(item.expires_at))}</div>
+  <div class="approval-item-meta">Usos: ${esc(String(item.used_count || 0))}</div>
+  ${canRevoke ? `<div class="approval-item-actions"><button class="approval-mini-btn" type="button" onclick="revokeApprovalById('${esc(item.id)}')">Revogar</button></div>` : ''}
+</div>`;
+                }).join('');
+            }
+
+            async function refreshApprovalsPanel() {
+                await refreshConversationGrantCache();
+                const panel = document.getElementById('approvals-panel');
+                if (panel && !panel.classList.contains('on')) {
+                    toggleApprovalsPanel();
+                }
+            }
+
+            async function revokeApprovalById(id) {
+                if (!id) return;
+                if (!confirm('Revogar este approval/grant?')) return;
+                try {
+                    await revokeBackendApprovalRequest(id);
+                    await refreshConversationGrantCache();
+                    toast('Grant revogado.');
+                } catch (error) {
+                    toast('Falha ao revogar grant: ' + (error?.message || error));
+                }
+            }
+
+            async function revokeCurrentConversationGrant() {
+                const grant = currentConversationGrant();
+                if (!grant?.id) {
+                    toast('Nenhum grant ativo nesta conversa.');
+                    return;
+                }
+                await revokeApprovalById(grant.id);
             }
 
             async function ensureSensitiveActionAuthorization(action, payload, options = {}) {
@@ -3315,6 +3613,8 @@
                     if (!grant?.id) throw new Error('Falha ao criar grant de conversa.');
                     const approvedGrant = await approveBackendApprovalRequest(grant.id);
                     setConversationGrantCache(conversationId, approvedGrant);
+                    await refreshConversationGrantCache();
+                    toast('Grant de 24h ativo nesta conversa.');
                     return { conversation_id: conversationId };
                 }
 
@@ -3327,6 +3627,7 @@
                 });
                 if (!approval?.id) throw new Error('Falha ao criar approval.');
                 const approved = await approveBackendApprovalRequest(approval.id);
+                await refreshConversationGrantCache();
                 return {
                     approval_id: approved.id,
                     conversation_id: conversationId || undefined
@@ -4775,6 +5076,17 @@ return await createBackendApprovalRequest({
                 const btn = document.getElementById('plugin-btn');
                 const open = panel.classList.toggle('on');
                 btn.classList.toggle('on', open);
+            }
+
+            function toggleApprovalsPanel() {
+                const panel = document.getElementById('approvals-panel');
+                const btn = document.getElementById('approvals-btn');
+                if (!panel || !btn) return;
+                const open = panel.classList.toggle('on');
+                btn.classList.toggle('on', open);
+                if (open) {
+                    renderApprovalsPanel();
+                }
             }
 
             function renderPluginList() {
@@ -6475,6 +6787,7 @@ return await createBackendApprovalRequest({
                 saveConvs();
                 renderSidebar();
                 renderChat(true);
+                renderConversationApprovalBanner();
                 if (window.innerWidth <= 768) closeSidebar();
             }
             function delConv(id, e) {
@@ -6553,6 +6866,7 @@ return await createBackendApprovalRequest({
                     chatRenderedFrom = 0;
                     chatRenderedCount = 0;
                     cleanupChatObserver();
+                    renderConversationApprovalBanner();
                     return;
                 }
 
@@ -6579,6 +6893,7 @@ return await createBackendApprovalRequest({
                     restoreChatScrollPosition(prevScrollTop, prevScrollHeight, prevClientHeight);
                 }
                 updateScrollBottomButton();
+                renderConversationApprovalBanner();
                 requestAnimationFrame(async () => {
                     await renderMermaidBlocks();
                     if (shouldStickToBottom) queueChatScrollToBottom(true);
