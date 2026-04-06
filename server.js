@@ -17,10 +17,12 @@ const systemDir = join(workspaceRootDir, ".system");
 const usersFile = join(systemDir, "users.json");
 const userStateDir = join(systemDir, "state");
 const systemPromptsDir = join(systemDir, "system-prompts");
+const credentialsDir = join(systemDir, "credentials");
 const sessions = new Map();
 const TOKEN_URL = "https://auth.openai.com/oauth/token";
 const CODEX_RESPONSES_URL = "https://chatgpt.com/backend-api/codex/responses";
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+const DEFAULT_TTS_API_URL = "https://apitts.ghost1.cloud";
 const OPENAI_OAUTH_CLIENT_ID = process.env.OPENAI_OAUTH_CLIENT_ID || "app_EMoamEEZ73f0CkXaXp7hrann";
 const DEFAULT_CODEX_MODEL = "gpt-5.4-mini";
 const DEFAULT_CODEX_REASONING = "medium";
@@ -36,6 +38,9 @@ const DEFAULT_EXEC_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_EXEC_TIMEOUT_MS = 60 * 60 * 1000;
 const MAX_EXEC_HISTORY_ITEMS = 100;
 const MAX_EXEC_LOG_TAIL_BYTES = 64 * 1024;
+const EXEC_ENABLED = ["1", "true", "yes", "on"].includes(String(process.env.SKILLFLOW_EXEC_ENABLED || "").trim().toLowerCase());
+const CLIENT_CODE_PLUGINS_ENABLED = ["1", "true", "yes", "on"].includes(String(process.env.SKILLFLOW_ENABLE_CLIENT_CODE_PLUGINS || "").trim().toLowerCase());
+const LIVE_CLIENT_ENABLED = ["1", "true", "yes", "on"].includes(String(process.env.SKILLFLOW_ENABLE_LIVE_CLIENT || "").trim().toLowerCase());
 const DEFAULT_EXEC_ALLOWED_BINS = [
   "node",
   "npm",
@@ -60,6 +65,8 @@ const AUTH_RATE_LIMIT_MAX_ATTEMPTS = 12;
 const CHAT_JOB_STATUS_RUNNING = "running";
 const CHAT_JOB_STATUS_COMPLETED = "completed";
 const CHAT_JOB_STATUS_FAILED = "failed";
+const TTS_API_URL = String(process.env.SKILLFLOW_TTS_API_URL || DEFAULT_TTS_API_URL).trim();
+const TTS_SECRET = String(process.env.SKILLFLOW_TTS_SECRET || "abelhadomato").trim();
 const activeExecutions = new Map();
 const activeChatJobs = new Map();
 const rateLimitStore = new Map();
@@ -225,6 +232,7 @@ async function ensureBaseDirs() {
   await mkdir(systemDir, { recursive: true });
   await mkdir(userStateDir, { recursive: true });
   await mkdir(systemPromptsDir, { recursive: true });
+  await mkdir(credentialsDir, { recursive: true });
   if (!existsSync(usersFile)) {
     await writeFile(usersFile, "[]\n", "utf8");
   }
@@ -264,6 +272,10 @@ function userStateFile(user) {
   return join(userStateDir, `${user.id}.json`);
 }
 
+function userCredentialsFile(user) {
+  return join(credentialsDir, `${user.id}.json`);
+}
+
 function systemPromptFilePath(id) {
   return join(systemPromptsDir, `${sanitizeId(id)}.json`);
 }
@@ -276,6 +288,9 @@ async function ensureUserDirs(user) {
   await mkdir(userChatJobsDir(user), { recursive: true });
   if (!existsSync(userStateFile(user))) {
     await writeFile(userStateFile(user), "{}\n", "utf8");
+  }
+  if (!existsSync(userCredentialsFile(user))) {
+    await writeFile(userCredentialsFile(user), "{}\n", "utf8");
   }
 }
 
@@ -452,7 +467,7 @@ async function readChatJobSnapshot(user, jobId) {
   return snapshot;
 }
 
-function normalizeChatJobPayload(input) {
+function normalizeChatJobPayload(input, credentials = {}) {
   const payload = input && typeof input === "object" && !Array.isArray(input) ? input : {};
   const provider = String(payload.provider || "").trim().toLowerCase();
 
@@ -472,12 +487,13 @@ function normalizeChatJobPayload(input) {
       provider,
       model,
       request: payload.request,
-      api_key: String(payload.api_key || "").trim()
+      api_key: String(payload.api_key || getConfiguredGeminiApiKey(credentials) || "").trim()
     };
   }
 
   if (provider === "codex") {
-    if (!payload.auth) {
+    const auth = payload.auth || getConfiguredCodexAuth(credentials);
+    if (!auth) {
       const error = new Error("auth ausente.");
       error.statusCode = 400;
       throw error;
@@ -501,7 +517,7 @@ function normalizeChatJobPayload(input) {
     }
     return {
       provider,
-      auth: payload.auth,
+      auth,
       model: String(payload.model),
       reasoning: payload.reasoning || DEFAULT_CODEX_REASONING,
       history_limit: payload.history_limit ?? DEFAULT_CODEX_HISTORY_LIMIT,
@@ -556,6 +572,83 @@ async function loadUserState(user) {
 async function saveUserState(user, nextState) {
   await ensureUserDirs(user);
   await writeFile(userStateFile(user), `${JSON.stringify(nextState, null, 2)}\n`, "utf8");
+}
+
+async function loadUserCredentials(user) {
+  await ensureUserDirs(user);
+  try {
+    const parsed = JSON.parse(await readFile(userCredentialsFile(user), "utf8"));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveUserCredentials(user, nextCredentials) {
+  await ensureUserDirs(user);
+  await writeFile(userCredentialsFile(user), `${JSON.stringify(nextCredentials, null, 2)}\n`, "utf8");
+}
+
+function credentialStatusPayload(credentials = {}) {
+  return {
+    gemini_configured: !!String(credentials.gemini_api_key || process.env.GEMINI_API_KEY || "").trim(),
+    codex_configured: Boolean(credentials.codex_auth),
+    tts_configured: !!(TTS_API_URL && TTS_SECRET)
+  };
+}
+
+function getConfiguredGeminiApiKey(credentials = {}) {
+  return String(process.env.GEMINI_API_KEY || credentials.gemini_api_key || "").trim();
+}
+
+function getConfiguredCodexAuth(credentials = {}) {
+  return credentials.codex_auth || null;
+}
+
+function runtimeConfigPayload(credentials = {}) {
+  return {
+    exec_enabled: EXEC_ENABLED,
+    client_code_plugins_enabled: CLIENT_CODE_PLUGINS_ENABLED,
+    live_client_enabled: LIVE_CLIENT_ENABLED,
+    credentials: credentialStatusPayload(credentials)
+  };
+}
+
+function parseStoredCodexAuth(rawValue) {
+  if (!rawValue) return null;
+  if (typeof rawValue === "object" && !Array.isArray(rawValue)) return rawValue;
+  const trimmed = String(rawValue || "").trim();
+  if (!trimmed) return null;
+  if (!trimmed.startsWith("{")) return trimmed;
+  return JSON.parse(trimmed);
+}
+
+function normalizeCredentialPayload(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("Payload de credencial invalido");
+  }
+
+  const provider = String(input.provider || "").trim().toLowerCase();
+  if (!["gemini", "codex"].includes(provider)) {
+    throw new Error("provider invalido");
+  }
+
+  const value = String(input.value || "").trim();
+  if (!value) {
+    throw new Error("value ausente");
+  }
+
+  if (provider === "codex") {
+    return {
+      provider,
+      parsedValue: parseStoredCodexAuth(value)
+    };
+  }
+
+  return {
+    provider,
+    parsedValue: value
+  };
 }
 
 function normalizeSystemPromptPayload(input, user, existing = null) {
@@ -1805,7 +1898,8 @@ async function executeChatJob(user, jobId, payload) {
 
 async function createChatJob(user, input) {
   await ensureUserDirs(user);
-  const payload = normalizeChatJobPayload(input);
+  const credentials = await loadUserCredentials(user);
+  const payload = normalizeChatJobPayload(input, credentials);
   const jobId = generateChatJobId();
   const meta = {
     id: jobId,
@@ -1861,7 +1955,8 @@ async function handleChatApi(req, res, user) {
   }
 
   const payload = await parseJsonBody(req);
-  const normalized = normalizeChatJobPayload(payload);
+  const credentials = await loadUserCredentials(user);
+  const normalized = normalizeChatJobPayload(payload, credentials);
   const provider = normalized.provider;
 
   if (provider === "gemini") {
@@ -2235,6 +2330,112 @@ async function handleFsApi(req, res, url, user) {
   sendJson(res, 405, { error: "Method not allowed" });
 }
 
+async function handleRuntimeConfigApi(req, res, user) {
+  if (req.method !== "GET") {
+    sendJson(res, 405, { error: "Method not allowed" });
+    return;
+  }
+  const credentials = await loadUserCredentials(user);
+  sendJson(res, 200, {
+    ok: true,
+    runtime: runtimeConfigPayload(credentials)
+  });
+}
+
+async function handleCredentialsApi(req, res, user) {
+  if (req.method === "GET") {
+    const credentials = await loadUserCredentials(user);
+    sendJson(res, 200, {
+      ok: true,
+      credentials: credentialStatusPayload(credentials)
+    });
+    return;
+  }
+
+  if (req.method === "POST") {
+    const payload = normalizeCredentialPayload(await parseJsonBody(req));
+    const current = await loadUserCredentials(user);
+    const next = { ...current };
+    if (payload.provider === "gemini") {
+      next.gemini_api_key = payload.parsedValue;
+    } else if (payload.provider === "codex") {
+      next.codex_auth = payload.parsedValue;
+    }
+    await saveUserCredentials(user, next);
+    sendJson(res, 200, {
+      ok: true,
+      credentials: credentialStatusPayload(next)
+    });
+    return;
+  }
+
+  sendJson(res, 405, { error: "Method not allowed" });
+}
+
+async function proxyTtsRequest(pathname, options = {}) {
+  if (!TTS_API_URL || !TTS_SECRET) {
+    const error = new Error("TTS indisponivel por politica do servidor.");
+    error.statusCode = 503;
+    throw error;
+  }
+
+  const response = await fetch(`${TTS_API_URL}${pathname}`, {
+    ...options,
+    headers: {
+      "x-secret": TTS_SECRET,
+      ...(options.headers || {})
+    }
+  });
+
+  return response;
+}
+
+async function handleTtsApi(req, res, url) {
+  if (req.method === "GET" && url.pathname === "/api/tts/health") {
+    const upstream = await proxyTtsRequest("/health");
+    const text = await upstream.text();
+    res.writeHead(upstream.status, {
+      "Content-Type": upstream.headers.get("content-type") || "application/json; charset=utf-8"
+    });
+    res.end(text);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/tts/voices") {
+    const upstream = await proxyTtsRequest("/vozes");
+    const text = await upstream.text();
+    res.writeHead(upstream.status, {
+      "Content-Type": upstream.headers.get("content-type") || "application/json; charset=utf-8"
+    });
+    res.end(text);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/tts/speak") {
+    const payload = await parseJsonBody(req);
+    const upstream = await proxyTtsRequest("", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        chavesecreta: TTS_SECRET,
+        voz: payload.voice,
+        texto: payload.text
+      })
+    });
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    res.writeHead(upstream.status, {
+      "Content-Type": upstream.headers.get("content-type") || "audio/mpeg",
+      "Content-Length": buffer.length
+    });
+    res.end(buffer);
+    return;
+  }
+
+  sendJson(res, 405, { error: "Method not allowed" });
+}
+
 async function handleExecApi(req, res, url, user) {
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
@@ -2254,6 +2455,11 @@ async function handleExecApi(req, res, url, user) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/exec") {
+    if (!EXEC_ENABLED) {
+      console.warn(`[ExecPolicy] Bloqueado por politica para usuario ${user.id}. Defina SKILLFLOW_EXEC_ENABLED=true para liberar /api/exec.`);
+      sendJson(res, 403, { error: "Execucao desabilitada por politica do servidor" });
+      return;
+    }
     const payload = await parseJsonBody(req);
     const run = await createExecution(user, payload);
     sendJson(res, 202, { ok: true, run });
@@ -2460,6 +2666,18 @@ const server = createServer(async (req, res) => {
     try {
       if (url.pathname === "/api/ghost-search") {
         await handleGhostSearch(req, res, authUser);
+        return;
+      }
+      if (url.pathname === "/api/runtime-config") {
+        await handleRuntimeConfigApi(req, res, authUser);
+        return;
+      }
+      if (url.pathname === "/api/credentials") {
+        await handleCredentialsApi(req, res, authUser);
+        return;
+      }
+      if (url.pathname.startsWith("/api/tts/")) {
+        await handleTtsApi(req, res, url);
         return;
       }
       if (url.pathname === "/api/chat" || url.pathname.startsWith("/api/chat/")) {

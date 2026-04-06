@@ -186,6 +186,20 @@ async function runCoreSmoke() {
     assert(body?.user?.login === login, "session should remain bound to same user");
     mark("sessao sobrevive entre requests", "PASS");
   }
+
+  {
+    const { response, body } = await fetchJson("/api/exec", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        command: "node",
+        args: ["--version"]
+      })
+    }, cookieJar);
+    assert(response.status === 403, "exec should be disabled by default");
+    assert(body?.error === "Execucao desabilitada por politica do servidor", "exec policy error should be explicit");
+    mark("POST /api/exec desabilitado por padrao", "PASS");
+  }
 }
 
 async function pollChatJob(jobId, cookieJar, timeoutMs = 90000) {
