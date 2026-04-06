@@ -114,11 +114,61 @@
             return `<img src="${src}" alt="${deps.esc(file?.name || 'Imagem gerada')}" loading="lazy">`;
         }
 
+        function renderMessageAttachments(message) {
+            let body = '';
+            const allFiles = Array.isArray(message.files) ? message.files : [];
+            const imageFiles = allFiles.filter(isRenderableImageFile);
+            const regularFiles = allFiles.filter(file => !isRenderableImageFile(file));
+
+            if (message.imgs && message.imgs.length > 0) {
+                body += `<div class="attached-imgs">${message.imgs.map(img => {
+                    const src = img?.data
+                        ? `data:${img.mimeType};base64,${img.data}`
+                        : (img?.downloadUrl || (img?.path ? '/api/fs/download?path=' + encodeURIComponent(img.path) : ''));
+                    return src
+                        ? `<img src="${src}">`
+                        : `<div class="file-preview"><span class="file-icon">🖼️</span><span>${deps.esc(img?.name || 'Imagem anexada')}</span></div>`;
+                }).join('')}</div>`;
+            }
+
+            if (imageFiles.length > 0) {
+                body += `<div class="attached-imgs">${imageFiles.map(renderInlineMessageImage).join('')}</div>`;
+            }
+
+            if (regularFiles.length > 0) {
+                body += `<div class="attached-imgs">${regularFiles.map(renderMessageFile).join('')}</div>`;
+            }
+
+            return body;
+        }
+
+        function renderMessageActions(messageIndex, role) {
+            if (role === 'user') {
+                return `
+                    <div class="msg-actions">
+                        <button class="msg-act-btn" onclick="editMsg(${messageIndex})" title="Editar">✏ Editar</button>
+                        <button class="msg-act-btn danger" onclick="deleteMsg(${messageIndex})" title="Deletar">🗑</button>
+                    </div>`;
+            }
+
+            if (role === 'model') {
+                return `
+                    <div class="msg-actions">
+                        <button class="msg-act-btn" onclick="regenerateMsg(${messageIndex})" title="Regenerar resposta">🔄 Regenerar</button>
+                        <button class="msg-act-btn danger" onclick="deleteMsg(${messageIndex})" title="Deletar">🗑</button>
+                    </div>`;
+            }
+
+            return '';
+        }
+
         return {
             autoH,
             isChatNearBottom,
             isRenderableImageFile,
             renderInlineMessageImage,
+            renderMessageActions,
+            renderMessageAttachments,
             renderMessageFile,
             updateScrollBottomButton,
             queueChatScrollToBottom,

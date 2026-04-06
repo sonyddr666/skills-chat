@@ -6754,31 +6754,8 @@ return await createBackendApprovalRequest({
 
             function msgHTML(m, i) {
                 const t = new Date(m.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                let body = '';
-                const allFiles = Array.isArray(m.files) ? m.files : [];
-                const imageFiles = allFiles.filter(isRenderableImageFile);
-                const regularFiles = allFiles.filter(file => !isRenderableImageFile(file));
+                let body = uiRenderRuntime.renderMessageAttachments(m);
                 const traceHtml = m.role === 'model' ? renderMessageTrace(m.trace) : '';
-
-                if (m.imgs && m.imgs.length > 0) {
-                    body += `<div class="attached-imgs">${m.imgs.map(img => {
-                        const src = img?.data
-                            ? `data:${img.mimeType};base64,${img.data}`
-                            : (img?.downloadUrl || (img?.path ? '/api/fs/download?path=' + encodeURIComponent(img.path) : ''));
-                        return src
-                            ? `<img src="${src}">`
-                            : `<div class="file-preview"><span class="file-icon">ðŸ–¼ï¸</span><span>${esc(img?.name || 'Imagem anexada')}</span></div>`;
-                    }).join('')}</div>`;
-                }
-                if (imageFiles.length > 0) {
-                    body += `<div class="attached-imgs">${imageFiles.map(renderInlineMessageImage).join('')}</div>`;
-                }
-                if (false) {
-                    body += `<div class="attached-imgs">${m.files.map(f => `<div class="file-preview"><span class="file-icon">${f.type === 'application/pdf' ? 'ðŸ“„' : 'ðŸ“'}</span><span>${esc(f.name)}</span></div>`).join('')}</div>`;
-                }
-                if (regularFiles.length > 0) {
-                    body += `<div class="attached-imgs">${regularFiles.map(f => renderMessageFile(f, m.role)).join('')}</div>`;
-                }
 
                 if (m.role === 'model') {
                     body += `<div class="msg-render-text" id="bb${i}">${renderMarkdown(m.text || '')}</div>`;
@@ -6786,18 +6763,7 @@ return await createBackendApprovalRequest({
                 } else {
                     body += `<p>${esc(m.text || '').replace(/\n/g, '<br>')}</p>`;
                 }
-
-                const userActions = m.role === 'user' ? `
-                    <div class="msg-actions">
-                        <button class="msg-act-btn" onclick="editMsg(${i})" title="Editar">âœ Editar</button>
-                        <button class="msg-act-btn danger" onclick="deleteMsg(${i})" title="Deletar">ðŸ—‘</button>
-                    </div>` : '';
-
-                const modelActions = m.role === 'model' ? `
-                    <div class="msg-actions">
-                        <button class="msg-act-btn" onclick="regenerateMsg(${i})" title="Regenerar resposta">ðŸ”„ Regenerar</button>
-                        <button class="msg-act-btn danger" onclick="deleteMsg(${i})" title="Deletar">ðŸ—‘</button>
-                    </div>` : '';
+                const actionsHtml = uiRenderRuntime.renderMessageActions(i, m.role);
 
                 return `<div class="row ${m.role} animate-in">
     <div class="av">${m.role === 'user' ? 'ðŸ‘¤' : 'âœ¦'}</div>
@@ -6812,7 +6778,7 @@ return await createBackendApprovalRequest({
         <button class="cp" onclick="copyMsg(${i})">âŽ˜ Copiar Tudo</button>
         ${m.role === 'model' ? `<button class="tts-btn" onclick="ttsSpeakMsg(${i})" id="tts-btn-${i}" title="Ouvir resposta">ðŸ”Š</button>` : ''}
       </div>
-      ${m.role === 'user' ? userActions : modelActions}
+      ${actionsHtml}
     </div>
   </div>`;
             }
