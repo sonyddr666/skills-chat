@@ -23,6 +23,7 @@
     <script src="./app/storage-sync.js"></script>
     <script src="./app/jobs.js"></script>
     <script src="./app/chat.js"></script>
+    <script src="./app/live.js"></script>
     <script src="./app/tts.js"></script>
     <script src="./account.js"></script>
     <script src="./app/api-client.js"></script>
@@ -8171,125 +8172,52 @@ return await createBackendApprovalRequest({
                     document.getElementById('live-btn')?.classList.remove('on');
                 }
             };
+            const liveRuntime = window.SkillFlowLive.init({
+                LIVE_SILENCE_MS,
+                toast,
+                isLiveModel,
+                getRuntimeConfig: () => runtimeConfig,
+                ensureMicPermission,
+                newConversation,
+                getActiveId: () => activeId,
+                getGeminiLive: () => geminiLive,
+                isLiveMode: () => !!liveMode,
+                setLiveMode: (next) => { liveMode = !!next; },
+                liveInit,
+                send,
+                getConversations: () => convs,
+                ttsSpeakMsg,
+                ttsStop,
+                setMicStreamEnabled,
+                getLiveRecognition: () => liveRecognition,
+                setLiveRecognition: (next) => { liveRecognition = next; },
+                getLiveRecognitionActive: () => liveRecognitionActive,
+                setLiveRecognitionActive: (next) => { liveRecognitionActive = !!next; },
+                getLiveSilenceTimer: () => liveSilenceTimer,
+                getLiveBarInterval: () => liveBarInterval,
+                setLiveBarInterval: (next) => { liveBarInterval = next; },
+                getLiveRestartTimer: () => liveRestartTimer,
+                getLiveSilenceStart: () => liveSilenceStart,
+                setLiveSilenceStart: (next) => { liveSilenceStart = next; },
+                getLiveIgnoreSTT: () => liveIgnoreSTT,
+                setLiveIgnoreSTT: (next) => { liveIgnoreSTT = !!next; },
+                setLiveAccum: (next) => { liveAccum = String(next || ''); },
+                setLiveLastDisplay: (next) => { liveLastDisplay = String(next || ''); },
+                setLiveNoSpeechCount: (next) => { liveNoSpeechCount = Number(next) || 0; },
+                setLiveRestartAttempts: (next) => { liveRestartAttempts = Number(next) || 0; },
+                setSpeechBase: (next) => { speechBase = String(next || ''); },
+                setLiveState: (next) => { liveState = next; }
+            });
 
             // â”€ HUD helper â”€
-            function liveSetHUD(state, label) {
-                liveState = state;
-                const hud = document.getElementById('live-hud');
-                const dot = document.getElementById('live-hud-dot');
-                const lbl = document.getElementById('live-hud-label');
-                const barW = document.getElementById('live-silence-bar-wrap');
-                const bar = document.getElementById('live-silence-bar');
+            function liveSetHUD(state, label) { return liveRuntime.liveSetHUD(state, label); }
 
-                hud?.classList.toggle('on', state !== 'idle');
-                if (dot) { dot.className = ''; if (state !== 'idle') dot.classList.add(state); }
-                if (lbl) lbl.textContent = label || '';
-                clearInterval(liveBarInterval);
-                if (bar) bar.style.width = '100%';
-                if (barW) barW.style.display = (state === 'listening' && liveSilenceStart) ? 'block' : 'none';
-                if (state === 'listening' && liveSilenceStart) {
-                    liveBarInterval = setInterval(() => {
-                        if (!liveSilenceStart) return;
-                        const pct = Math.max(0, 100 - ((Date.now() - liveSilenceStart) / LIVE_SILENCE_MS) * 100);
-                        if (bar) bar.style.width = pct + '%';
-                        if (pct <= 0) clearInterval(liveBarInterval);
-                    }, 50);
-                }
-            }
-
-            async function startLiveForCurrentModel(options = {}) {
-                const model = document.getElementById('model-sel').value;
-
-                // â•â•â• Gemini Live API (native WebSocket) â•â•â•
-                if (isLiveModel(model)) {
-                    if (!runtimeConfig.live_client_enabled) {
-                        if (!options.silent) toast('Live mode desabilitado por politica neste ambiente.');
-                        return false;
-                    }
-                    const apiKey = document.getElementById('api-in').value.trim();
-                    if (!apiKey) {
-                        if (!options.silent) toast('âš  Insira sua API Key!');
-                        return false;
-                    }
-
-                    const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-                    if (!isSecure) {
-                        if (!options.silent) toast('âš  Live Mode requer HTTPS.');
-                        return false;
-                    }
-                    if (!await ensureMicPermission()) return false;
-
-                    if (!activeId) newConversation();
-
-                    try {
-                        liveMode = true;
-                        document.getElementById('live-btn')?.classList.add('on');
-                        await geminiLive.connect(apiKey, model);
-                        if (!options.silent) toast('âœ“ Gemini Live conectado!');
-                        return true;
-                    } catch (err) {
-                        liveMode = false;
-                        document.getElementById('live-btn')?.classList.remove('on');
-                        console.error('[GeminiLive] Connect failed:', err);
-                        if (!options.silent) toast('âŒ Falha ao conectar: ' + (err.message || 'erro desconhecido'));
-                        return false;
-                    }
-                }
-
-                // â•â•â• Legacy pipeline (Web Speech API + Ghost TTS) â•â•â•
-                if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
-                    if (!options.silent) toast('âš  Live Mode precisa de Chrome ou Edge.');
-                    return false;
-                }
-                const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-                if (!isSecure) {
-                    if (!options.silent) toast('âš  Live Mode requer HTTPS. Mic nÃ£o funciona em HTTP.');
-                    return false;
-                }
-                const voice = document.getElementById('tts-voice-sel')?.value;
-                if (!voice) {
-                    if (!options.silent) toast('âš  Selecione uma voz em ConfiguraÃ§Ãµes > TTS antes de ativar o Live Mode.');
-                    return false;
-                }
-                if (!await ensureMicPermission()) return false;
-
-                liveMode = true;
-                document.getElementById('live-btn')?.classList.add('on');
-                liveInit();
-                return true;
-            }
+            async function startLiveForCurrentModel(options = {}) { return liveRuntime.startLiveForCurrentModel(options); }
 
             // â”€ Toggle â”€
-            async function toggleLive() {
-                if (geminiLive.active || liveMode || liveRecognitionActive || liveRecognition) {
-                    liveStop();
-                    return;
-                }
-                await startLiveForCurrentModel();
-            }
+            async function toggleLive() { return liveRuntime.toggleLive(); }
 
-            async function toggleLiveScreenShare() {
-                const model = document.getElementById('model-sel').value;
-                if (!isLiveModel(model)) {
-                    toast('âš  Compartilhamento de tela estÃ¡ disponÃ­vel sÃ³ no Gemini Live 3.1.');
-                    return;
-                }
-                if (!geminiLive.active) {
-                    toast('âš  Ative o Gemini Live antes de compartilhar a tela.');
-                    return;
-                }
-                if (geminiLive.screenShareActive) {
-                    geminiLive.stopScreenShare();
-                    return;
-                }
-                try {
-                    await geminiLive.startScreenShare(5000);
-                } catch (error) {
-                    console.error('[GeminiLive] Screen share error:', error);
-                    toast('âš  Falha ao compartilhar a tela: ' + (error.message || 'erro desconhecido'));
-                    geminiLive.stopScreenShare({ silent: true });
-                }
-            }
+            async function toggleLiveScreenShare() { return liveRuntime.toggleLiveScreenShare(); }
 
             // â”€ Init: 1 Ãºnico recognition â”€
             function liveInit() {
@@ -8405,108 +8333,18 @@ return await createBackendApprovalRequest({
             }
 
             // â”€ Pause STT during processing/TTS â”€
-            function livePauseSTT() {
-                liveIgnoreSTT = true;
-                clearTimeout(liveSilenceTimer);
-                clearInterval(liveBarInterval);
-                clearTimeout(liveRestartTimer);
-                liveSilenceStart = null;
-                setMicStreamEnabled(false);
-                if (liveRecognition) {
-                    try { liveRecognition.stop(); } catch (_) { }
-                }
-            }
+            function livePauseSTT() { return liveRuntime.livePauseSTT(); }
 
             // â”€ Trigger send â”€
-            async function liveTriggerSend() {
-                if (!liveMode) return;
-                clearTimeout(liveSilenceTimer);
-                clearInterval(liveBarInterval);
-                liveSilenceStart = null;
-
-                livePauseSTT();
-                liveSetHUD('processing', 'â³ Processandoâ€¦');
-
-                await send();
-
-                if (!liveMode) return;
-
-                const msgs = convs[activeId]?.msgs || [];
-                const lastIdx = msgs.length - 1;
-                if (msgs[lastIdx]?.role === 'model' && msgs[lastIdx]?.text) {
-                    liveSetHUD('playing', 'ðŸ”Š Respondendoâ€¦');
-                    await liveSpeak(lastIdx);
-                } else {
-                    liveResumeListening();
-                }
-            }
+            async function liveTriggerSend() { return liveRuntime.liveTriggerSend(); }
 
             // â”€ Fala e aguarda fim â”€
-            async function liveSpeak(msgIdx) {
-                if (!liveMode) return 'inactive';
+            async function liveSpeak(msgIdx) { return liveRuntime.liveSpeak(msgIdx); }
 
-                const status = await ttsSpeakMsg(msgIdx);
-                if (!liveMode) return status;
-
-                if (status === 'completed') {
-                    setTimeout(() => liveResumeListening(), 200);
-                    return 'ended';
-                }
-
-                if (status === 'interrupted') {
-                    liveSetHUD('listening', 'Ã°Å¸Å½â„¢ Interrompido, pode falar');
-                    setTimeout(() => liveResumeListening(), 120);
-                    return 'interrupted';
-                }
-
-                setTimeout(() => liveResumeListening(), 200);
-                return status;
-            }
-
-            function liveResumeListening() {
-                if (!liveMode) return;
-                liveIgnoreSTT = false;
-                liveSilenceStart = null;
-                liveAccum = '';
-                liveLastDisplay = '';
-                liveNoSpeechCount = 0;
-                liveRestartAttempts = 0;
-                speechBase = '';
-                const msgEl = document.getElementById('msg');
-                if (msgEl) msgEl.value = '';
-                setTimeout(() => setMicStreamEnabled(true), 200);
-                // Restart recognition fresh
-                if (liveRecognition && !liveRecognitionActive) {
-                    try { liveRecognition.start(); } catch (_) { }
-                }
-                liveSetHUD('listening', 'ðŸŽ™ Ouvindoâ€¦');
-            }
+            function liveResumeListening() { return liveRuntime.liveResumeListening(); }
 
             // â”€ Para tudo â”€
-            function liveStop(options = {}) {
-                // Disconnect Gemini Live WebSocket if active
-                if (geminiLive.active) {
-                    geminiLive.disconnect();
-                }
-                liveMode = false;
-                liveIgnoreSTT = false;
-                clearTimeout(liveSilenceTimer);
-                clearInterval(liveBarInterval);
-                clearTimeout(liveRestartTimer);
-                if (liveRecognition) {
-                    try { liveRecognition.stop(); } catch (_) { }
-                    liveRecognition = null;
-                }
-                liveRecognitionActive = false;
-                liveRestartAttempts = 0;
-                liveNoSpeechCount = 0;
-
-                ttsStop();
-                setMicStreamEnabled(true);
-                liveSetHUD('idle', '');
-                document.getElementById('live-btn')?.classList.remove('on');
-                if (!options.silent) toast('â¹ Live Mode encerrado.');
-            }
+            function liveStop(options = {}) { return liveRuntime.liveStop(options); }
 
             // â”€â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             // DRAG & DROP â€” Images and files
