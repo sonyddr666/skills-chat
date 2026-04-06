@@ -25,6 +25,7 @@
     <script src="./app/chat.js"></script>
     <script src="./app/live.js"></script>
     <script src="./app/tts.js"></script>
+    <script src="./app/ui-render.js"></script>
     <script src="./account.js"></script>
     <script src="./app/api-client.js"></script>
     <link rel="stylesheet" href="./mobile.css?v=2">
@@ -6525,25 +6526,15 @@ return await createBackendApprovalRequest({
                 if (!confirm('Tem certeza que deseja apagar todas as conversas? Esta aÃ§Ã£o nÃ£o pode ser desfeita.')) return;
                 convs = {}; activeId = null; saveConvs(); renderSidebar(); renderChat();
             }
+            const uiRenderRuntime = window.SkillFlowUiRender.init({
+                getConversations: () => convs,
+                getActiveId: () => activeId,
+                conversationTitle,
+                conversationTs,
+                esc
+            });
 
-            function renderSidebar() {
-                const list = document.getElementById('conv-list');
-                const q = document.getElementById('search-box').value.toLowerCase();
-                const ids = Object.keys(convs)
-                    .filter(id => conversationTitle(convs[id]).toLowerCase().includes(q))
-                    .sort((a, b) => conversationTs(convs[b]) - conversationTs(convs[a]));
-
-                if (ids.length === 0) {
-                    list.innerHTML = `<div style="text-align:center; padding: 20px 10px; color:var(--muted); font-size: 13px;">Nenhuma conversa encontrada.</div>`;
-                    return;
-                }
-
-                list.innerHTML = ids.map(id => `
-    <div class="ci ${id === activeId ? 'active' : ''}" data-cid="${id}" onclick="setActive('${id}')" ondblclick="event.stopPropagation();renameConv('${id}')">
-      <span class="ci-title">${esc(conversationTitle(convs[id]))}</span>
-      <button class="ci-del" onclick="delConv('${id}',event)" title="Deletar">âœ•</button>
-    </div>`).join('');
-            }
+            function renderSidebar() { return uiRenderRuntime.renderSidebar(); }
 
             // â”€ RENDER CHAT (lazy rendering â€” EstratÃ©gia A) â”€
             const CHAT_PAGE_SIZE = 25;
@@ -6966,10 +6957,7 @@ return await createBackendApprovalRequest({
             function scrollEnd(force = false) {
                 queueChatScrollToBottom(force);
             }
-            function toast(msg) {
-                const t = document.getElementById('toast'); t.textContent = msg;
-                t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2800);
-            }
+            function toast(msg) { return uiRenderRuntime.toast(msg); }
             function autoH(el) {
                 el.style.height = '0';
                 el.style.height = Math.min(el.scrollHeight, 200) + 'px';
