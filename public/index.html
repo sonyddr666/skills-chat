@@ -6538,10 +6538,13 @@ return await createBackendApprovalRequest({
                 setChatStickToBottom: (next) => { chatStickToBottom = !!next; },
                 getChatScrollObserver: () => chatScrollObserver,
                 getChatScrollRaf: () => chatScrollRaf,
+                getConversations: () => convs,
                 getConversationMessages: (id) => conversationMessages(convs[id]),
                 getMsgHTMLCache: () => msgHTMLCache,
                 renderConversationApprovalBanner,
                 renderMermaidBlocks,
+                saveConvs,
+                send,
                 setChatScrollObserver: (next) => { chatScrollObserver = next; },
                 setChatScrollRaf: (next) => { chatScrollRaf = Number(next) || 0; },
                 buildMessageFileDownloadUrl,
@@ -6639,71 +6642,20 @@ return await createBackendApprovalRequest({
 
             function msgHTML(m, i) { return uiRenderRuntime.renderMessageHtml(m, i); }
 
-            function copyMsg(i) {
-                navigator.clipboard.writeText(convs[activeId].msgs[i].text)
-                    .then(() => toast('âœ“ Mensagem copiada!'));
-            }
+            function copyMsg(i) { return uiRenderRuntime.copyMsg(i); }
 
             // â”€ EDIT MESSAGE â”€
-            function editMsg(i) {
-                const m = convs[activeId]?.msgs[i];
-                if (!m || m.role !== 'user') return;
-                const bub = document.getElementById('bub' + i);
-                if (!bub) return;
-                bub.innerHTML = `<textarea class="edit-textarea" id="edit-ta-${i}">${esc(m.text || '')}</textarea>
-                <div class="edit-actions">
-                    <button class="edit-save-btn" onclick="saveEdit(${i})">ðŸ’¾ Salvar e Reenviar</button>
-                    <button class="edit-cancel-btn" onclick="cancelEdit(${i})">Cancelar</button>
-                </div>`;
-                document.getElementById('edit-ta-' + i)?.focus();
-            }
+            function editMsg(i) { return uiRenderRuntime.editMsg(i); }
 
-            function saveEdit(i) {
-                const ta = document.getElementById('edit-ta-' + i);
-                if (!ta) return;
-                const newText = ta.value.trim();
-                if (!newText) { toast('âš  Mensagem vazia.'); return; }
-                // Update message and remove all subsequent messages
-                convs[activeId].msgs[i].text = newText;
-                convs[activeId].msgs[i].ts = Date.now();
-                convs[activeId].msgs = convs[activeId].msgs.slice(0, i + 1);
-                saveConvs();
-                renderChat();
-                // Re-send to get new response
-                send();
-            }
+            function saveEdit(i) { return uiRenderRuntime.saveEdit(i); }
 
-            function cancelEdit(i) {
-                renderChat();
-            }
+            function cancelEdit(i) { return uiRenderRuntime.cancelEdit(i); }
 
             // â”€ REGENERATE â”€
-            function regenerateMsg(i) {
-                const msgs = convs[activeId]?.msgs;
-                if (!msgs || i < 1) return;
-                // Remove model response and all after it
-                convs[activeId].msgs = convs[activeId].msgs.slice(0, i);
-                saveConvs();
-                renderChat();
-                // Re-send
-                send();
-            }
+            function regenerateMsg(i) { return uiRenderRuntime.regenerateMsg(i); }
 
             // â”€ DELETE MESSAGE â”€
-            function deleteMsg(i) {
-                const msgs = convs[activeId]?.msgs;
-                if (!msgs) return;
-                if (!confirm('Deletar esta mensagem?')) return;
-                // If user msg, also delete the model response after it
-                if (msgs[i].role === 'user' && msgs[i + 1]?.role === 'model') {
-                    convs[activeId].msgs.splice(i, 2);
-                } else {
-                    convs[activeId].msgs.splice(i, 1);
-                }
-                saveConvs();
-                renderChat();
-                renderSidebar();
-            }
+            function deleteMsg(i) { return uiRenderRuntime.deleteMsg(i); }
 
             // â”€ UTILS â”€
             function esc(s) {

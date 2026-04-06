@@ -362,13 +362,88 @@
             });
         }
 
+        function copyMsg(messageIndex) {
+            const activeId = deps.getActiveId();
+            const conversations = deps.getConversations();
+            return global.navigator.clipboard.writeText(conversations[activeId].msgs[messageIndex].text)
+                .then(() => toast('✓ Mensagem copiada!'));
+        }
+
+        function editMsg(messageIndex) {
+            const activeId = deps.getActiveId();
+            const conversations = deps.getConversations();
+            const message = conversations[activeId]?.msgs[messageIndex];
+            if (!message || message.role !== 'user') return;
+            const bubble = global.document.getElementById('bub' + messageIndex);
+            if (!bubble) return;
+            bubble.innerHTML = `<textarea class="edit-textarea" id="edit-ta-${messageIndex}">${deps.esc(message.text || '')}</textarea>
+                <div class="edit-actions">
+                    <button class="edit-save-btn" onclick="saveEdit(${messageIndex})">💾 Salvar e Reenviar</button>
+                    <button class="edit-cancel-btn" onclick="cancelEdit(${messageIndex})">Cancelar</button>
+                </div>`;
+            global.document.getElementById('edit-ta-' + messageIndex)?.focus();
+        }
+
+        function saveEdit(messageIndex) {
+            const textarea = global.document.getElementById('edit-ta-' + messageIndex);
+            if (!textarea) return;
+            const newText = textarea.value.trim();
+            if (!newText) {
+                toast('⚠ Mensagem vazia.');
+                return;
+            }
+
+            const activeId = deps.getActiveId();
+            const conversations = deps.getConversations();
+            conversations[activeId].msgs[messageIndex].text = newText;
+            conversations[activeId].msgs[messageIndex].ts = Date.now();
+            conversations[activeId].msgs = conversations[activeId].msgs.slice(0, messageIndex + 1);
+            deps.saveConvs();
+            renderChat();
+            deps.send();
+        }
+
+        function cancelEdit() {
+            renderChat();
+        }
+
+        function regenerateMsg(messageIndex) {
+            const activeId = deps.getActiveId();
+            const messages = deps.getConversations()[activeId]?.msgs;
+            if (!messages || messageIndex < 1) return;
+            deps.getConversations()[activeId].msgs = messages.slice(0, messageIndex);
+            deps.saveConvs();
+            renderChat();
+            deps.send();
+        }
+
+        function deleteMsg(messageIndex) {
+            const activeId = deps.getActiveId();
+            const messages = deps.getConversations()[activeId]?.msgs;
+            if (!messages) return;
+            if (!global.confirm('Deletar esta mensagem?')) return;
+            if (messages[messageIndex].role === 'user' && messages[messageIndex + 1]?.role === 'model') {
+                deps.getConversations()[activeId].msgs.splice(messageIndex, 2);
+            } else {
+                deps.getConversations()[activeId].msgs.splice(messageIndex, 1);
+            }
+            deps.saveConvs();
+            renderChat();
+            renderSidebar();
+        }
+
         return {
             autoH,
             cachedMsgHTML,
             cleanupChatObserver,
+            copyMsg,
+            deleteMsg,
+            editMsg,
             finalizeRenderChat,
             isChatNearBottom,
             isRenderableImageFile,
+            cancelEdit,
+            regenerateMsg,
             renderInlineMessageImage,
             renderMessageActions,
             renderMessageAttachments,
@@ -381,6 +456,7 @@
             renderInitialChatSlice,
             loadOlderMessages,
             msgCacheKey,
+            saveEdit,
             setupChatObserver,
             updateScrollBottomButton,
             queueChatScrollToBottom,
