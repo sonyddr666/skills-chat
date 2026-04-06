@@ -6527,6 +6527,10 @@ return await createBackendApprovalRequest({
                 convs = {}; activeId = null; saveConvs(); renderSidebar(); renderChat();
             }
             const uiRenderRuntime = window.SkillFlowUiRender.init({
+                getPendingImages: () => pendingImages,
+                getPendingFiles: () => pendingFiles,
+                setPendingImages: (next) => { pendingImages = Array.isArray(next) ? next : []; },
+                setPendingFiles: (next) => { pendingFiles = Array.isArray(next) ? next : []; },
                 getConversations: () => convs,
                 getActiveId: () => activeId,
                 getChatPageSize: () => CHAT_PAGE_SIZE,
@@ -6603,33 +6607,9 @@ return await createBackendApprovalRequest({
                 }
                 e.target.value = '';
             }
-            function renderImagePreview() {
-                const c = document.getElementById('img-preview-container');
-                if (!pendingImages.length && !pendingFiles.length) { c.style.display = 'none'; return; }
-                c.style.display = 'flex';
-                let html = pendingImages.map((img, i) => `
-    <div class="img-preview">
-      <img src="${img.url}">
-      <button class="rm-btn" onclick="removeImage(${i})">âœ•</button>
-    </div>
-  `).join('');
-                html += pendingFiles.map((f, i) => `
-    <div class="file-preview">
-      <span class="file-icon">${f.mimeType === 'application/pdf' ? 'ðŸ“„' : 'ðŸ“'}</span>
-      <span>${esc(f.name)}</span>
-      <button class="rm-btn" onclick="removeFile(${i})">âœ•</button>
-    </div>
-  `).join('');
-                c.innerHTML = html;
-            }
-            function removeImage(i) {
-                pendingImages.splice(i, 1);
-                renderImagePreview();
-            }
-            function removeFile(i) {
-                pendingFiles.splice(i, 1);
-                renderImagePreview();
-            }
+            function renderImagePreview() { return uiRenderRuntime.renderImagePreview(); }
+            function removeImage(i) { return uiRenderRuntime.removeImage(i); }
+            function removeFile(i) { return uiRenderRuntime.removeFile(i); }
 
             function sanitizeUploadName(name, fallback = 'arquivo') { return chatRuntime.sanitizeUploadName(name, fallback); }
             function persistPendingAttachments(items, folder) { return chatRuntime.persistPendingAttachments(items, folder); }

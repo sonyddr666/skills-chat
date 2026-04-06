@@ -28,6 +28,47 @@
             global.setTimeout(() => toastEl.classList.remove('show'), 2800);
         }
 
+        function renderImagePreview() {
+            const container = global.document.getElementById('img-preview-container');
+            const pendingImages = deps.getPendingImages();
+            const pendingFiles = deps.getPendingFiles();
+            if (!container) return;
+            if (!pendingImages.length && !pendingFiles.length) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'flex';
+            let html = pendingImages.map((img, i) => `
+    <div class="img-preview">
+      <img src="${img.url}">
+      <button class="rm-btn" onclick="removeImage(${i})">âœ•</button>
+    </div>
+  `).join('');
+            html += pendingFiles.map((file, i) => `
+    <div class="file-preview">
+      <span class="file-icon">${String(file?.mimeType || '').toLowerCase() === 'application/pdf' ? 'ðŸ“„' : 'ðŸ“'}</span>
+      <span>${deps.esc(file?.name || 'arquivo')}</span>
+      <button class="rm-btn" onclick="removeFile(${i})">âœ•</button>
+    </div>
+  `).join('');
+            container.innerHTML = html;
+        }
+
+        function removeImage(index) {
+            const nextImages = deps.getPendingImages().slice();
+            nextImages.splice(index, 1);
+            deps.setPendingImages(nextImages);
+            renderImagePreview();
+        }
+
+        function removeFile(index) {
+            const nextFiles = deps.getPendingFiles().slice();
+            nextFiles.splice(index, 1);
+            deps.setPendingFiles(nextFiles);
+            renderImagePreview();
+        }
+
         function isChatNearBottom(chatEl, threshold = 180) {
             if (!chatEl) return true;
             return (chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight) <= threshold;
@@ -443,8 +484,11 @@
             isChatNearBottom,
             isRenderableImageFile,
             cancelEdit,
+            removeFile,
+            removeImage,
             regenerateMsg,
             renderInlineMessageImage,
+            renderImagePreview,
             renderMessageActions,
             renderMessageAttachments,
             renderChat,
