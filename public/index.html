@@ -6764,23 +6764,8 @@ return await createBackendApprovalRequest({
                     body += `<p>${esc(m.text || '').replace(/\n/g, '<br>')}</p>`;
                 }
                 const actionsHtml = uiRenderRuntime.renderMessageActions(i, m.role);
-
-                return `<div class="row ${m.role} animate-in">
-    <div class="av">${m.role === 'user' ? 'ðŸ‘¤' : 'âœ¦'}</div>
-    <div style="flex:1; max-width: calc(100% - 42px);">
-      <div class="bub" id="bub${i}">${body}</div>
-      <div class="meta" id="mt${i}">
-        <span>${t}</span>
-        ${m.model ? `<span style="color:var(--accent2)">${m.model}</span>` : ''}
-        ${m.think ? `<span class="tbadge">thinking:${m.think}</span>` : ''}
-        ${m.live ? `<span style="background:#ff4757;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700">LIVE</span>` : ''}
-        ${m.tok ? `<span>${m.tok.toLocaleString()} tok</span>` : ''}
-        <button class="cp" onclick="copyMsg(${i})">âŽ˜ Copiar Tudo</button>
-        ${m.role === 'model' ? `<button class="tts-btn" onclick="ttsSpeakMsg(${i})" id="tts-btn-${i}" title="Ouvir resposta">ðŸ”Š</button>` : ''}
-      </div>
-      ${actionsHtml}
-    </div>
-  </div>`;
+                const metaHtml = uiRenderRuntime.renderMessageMeta(m, i, t);
+                return uiRenderRuntime.renderMessageShell(m, i, body, metaHtml, actionsHtml);
             }
 
             function copyMsg(i) {

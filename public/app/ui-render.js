@@ -162,6 +162,29 @@
             return '';
         }
 
+        function renderMessageMeta(message, messageIndex, formattedTime) {
+            return `<div class="meta" id="mt${messageIndex}">
+        <span>${formattedTime}</span>
+        ${message.model ? `<span style="color:var(--accent2)">${message.model}</span>` : ''}
+        ${message.think ? `<span class="tbadge">thinking:${message.think}</span>` : ''}
+        ${message.live ? `<span style="background:#ff4757;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700">LIVE</span>` : ''}
+        ${message.tok ? `<span>${message.tok.toLocaleString()} tok</span>` : ''}
+        <button class="cp" onclick="copyMsg(${messageIndex})">⎘ Copiar Tudo</button>
+        ${message.role === 'model' ? `<button class="tts-btn" onclick="ttsSpeakMsg(${messageIndex})" id="tts-btn-${messageIndex}" title="Ouvir resposta">🔊</button>` : ''}
+      </div>`;
+        }
+
+        function renderMessageShell(message, messageIndex, bodyHtml, metaHtml, actionsHtml) {
+            return `<div class="row ${message.role} animate-in">
+    <div class="av">${message.role === 'user' ? '👤' : '✦'}</div>
+    <div style="flex:1; max-width: calc(100% - 42px);">
+      <div class="bub" id="bub${messageIndex}">${bodyHtml}</div>
+      ${metaHtml}
+      ${actionsHtml}
+    </div>
+  </div>`;
+        }
+
         return {
             autoH,
             isChatNearBottom,
@@ -170,6 +193,8 @@
             renderMessageActions,
             renderMessageAttachments,
             renderMessageFile,
+            renderMessageMeta,
+            renderMessageShell,
             updateScrollBottomButton,
             queueChatScrollToBottom,
             restoreChatScrollPosition,
