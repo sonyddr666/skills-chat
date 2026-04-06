@@ -6529,9 +6529,19 @@ return await createBackendApprovalRequest({
             const uiRenderRuntime = window.SkillFlowUiRender.init({
                 getConversations: () => convs,
                 getActiveId: () => activeId,
+                getChatPageSize: () => CHAT_PAGE_SIZE,
+                getChatRenderedCount: () => chatRenderedCount,
+                setChatRenderedCount: (next) => { chatRenderedCount = Number(next) || 0; },
+                getChatRenderedFrom: () => chatRenderedFrom,
+                setChatRenderedFrom: (next) => { chatRenderedFrom = Number(next) || 0; },
                 getChatStickToBottom: () => chatStickToBottom,
                 setChatStickToBottom: (next) => { chatStickToBottom = !!next; },
+                getChatScrollObserver: () => chatScrollObserver,
                 getChatScrollRaf: () => chatScrollRaf,
+                getConversationMessages: (id) => conversationMessages(convs[id]),
+                getMsgHTMLCache: () => msgHTMLCache,
+                renderMermaidBlocks,
+                setChatScrollObserver: (next) => { chatScrollObserver = next; },
                 setChatScrollRaf: (next) => { chatScrollRaf = Number(next) || 0; },
                 buildMessageFileDownloadUrl,
                 conversationTitle,
@@ -6551,22 +6561,9 @@ return await createBackendApprovalRequest({
             let chatScrollObserver = null; // IntersectionObserver for loading older msgs
             const msgHTMLCache = new Map(); // key: convId+msgIndex+msgTs â†’ HTML string
 
-            function msgCacheKey(convId, idx, msg) {
-                return `${convId}:${idx}:${msg.ts || 0}:${(msg.text || '').length}:${Array.isArray(msg.trace) ? msg.trace.length : 0}:${Array.isArray(msg.files) ? msg.files.length : 0}`;
-            }
+            function msgCacheKey(convId, idx, msg) { return uiRenderRuntime.msgCacheKey(convId, idx, msg); }
 
-            function cachedMsgHTML(convId, msg, idx) {
-                const key = msgCacheKey(convId, idx, msg);
-                if (msgHTMLCache.has(key)) return msgHTMLCache.get(key);
-                const html = msgHTML(msg, idx);
-                msgHTMLCache.set(key, html);
-                // Keep cache bounded
-                if (msgHTMLCache.size > 500) {
-                    const first = msgHTMLCache.keys().next().value;
-                    msgHTMLCache.delete(first);
-                }
-                return html;
-            }
+            function cachedMsgHTML(convId, msg, idx) { return uiRenderRuntime.cachedMsgHTML(convId, msg, idx); }
 
             function renderChat(forceScrollToBottom = false) {
                 const c = document.getElementById('chat');
@@ -6628,68 +6625,11 @@ return await createBackendApprovalRequest({
                 setupChatObserver();
             }
 
-            function loadOlderMessages() {
-                if (!activeId) return;
-                const messages = conversationMessages(convs[activeId]);
-                if (chatRenderedFrom <= 0) return;
+            function loadOlderMessages() { return uiRenderRuntime.loadOlderMessages(); }
 
-                const c = document.getElementById('chat');
-                const prevScrollHeight = c.scrollHeight;
+            function setupChatObserver() { return uiRenderRuntime.setupChatObserver(); }
 
-                // Load next batch
-                const newFrom = Math.max(0, chatRenderedFrom - CHAT_PAGE_SIZE);
-                const batchMsgs = messages.slice(newFrom, chatRenderedFrom);
-
-                // Build HTML for the batch
-                const batchHtml = batchMsgs.map((m, i) => cachedMsgHTML(activeId, m, newFrom + i)).join('');
-
-                // Update sentinel
-                const hasOlder = newFrom > 0;
-                const sentinel = hasOlder
-                    ? `<div id="chat-load-more" style="text-align:center;padding:12px;color:var(--muted);font-size:12px;cursor:pointer" onclick="loadOlderMessages()">â¬† Carregar mensagens anteriores (${newFrom} restantes)</div>`
-                    : '';
-
-                // Remove old sentinel and prepend new batch
-                const oldSentinel = document.getElementById('chat-load-more');
-                if (oldSentinel) oldSentinel.remove();
-
-                c.insertAdjacentHTML('afterbegin', sentinel + batchHtml);
-
-                chatRenderedFrom = newFrom;
-                chatRenderedCount += batchMsgs.length;
-
-                // Maintain scroll position
-                requestAnimationFrame(() => {
-                    const newScrollHeight = c.scrollHeight;
-                    c.scrollTop += (newScrollHeight - prevScrollHeight);
-                    updateScrollBottomButton();
-                    renderMermaidBlocks();
-                });
-
-                // Re-setup observer on new sentinel
-                setupChatObserver();
-            }
-
-            function setupChatObserver() {
-                cleanupChatObserver();
-                const sentinel = document.getElementById('chat-load-more');
-                if (!sentinel) return;
-
-                chatScrollObserver = new IntersectionObserver((entries) => {
-                    if (entries[0]?.isIntersecting) {
-                        loadOlderMessages();
-                    }
-                }, { root: document.getElementById('chat'), rootMargin: '200px 0px 0px 0px' });
-
-                chatScrollObserver.observe(sentinel);
-            }
-
-            function cleanupChatObserver() {
-                if (chatScrollObserver) {
-                    chatScrollObserver.disconnect();
-                    chatScrollObserver = null;
-                }
-            }
+            function cleanupChatObserver() { return uiRenderRuntime.cleanupChatObserver(); }
 
             // â”€ FILE HANDLING â”€
             let pendingFiles = []; // non-image files

@@ -202,8 +202,83 @@
             return renderMessageShell(message, messageIndex, body, metaHtml, actionsHtml);
         }
 
+        function msgCacheKey(convId, idx, msg) {
+            return `${convId}:${idx}:${msg.ts || 0}:${(msg.text || '').length}:${Array.isArray(msg.trace) ? msg.trace.length : 0}:${Array.isArray(msg.files) ? msg.files.length : 0}`;
+        }
+
+        function cachedMsgHTML(convId, msg, idx) {
+            const key = msgCacheKey(convId, idx, msg);
+            const cache = deps.getMsgHTMLCache();
+            if (cache.has(key)) return cache.get(key);
+            const html = renderMessageHtml(msg, idx);
+            cache.set(key, html);
+            if (cache.size > 500) {
+                const first = cache.keys().next().value;
+                cache.delete(first);
+            }
+            return html;
+        }
+
+        function cleanupChatObserver() {
+            const observer = deps.getChatScrollObserver();
+            if (observer) {
+                observer.disconnect();
+                deps.setChatScrollObserver(null);
+            }
+        }
+
+        function loadOlderMessages() {
+            const activeId = deps.getActiveId();
+            if (!activeId) return;
+            const messages = deps.getConversationMessages(activeId);
+            if (deps.getChatRenderedFrom() <= 0) return;
+
+            const chatEl = global.document.getElementById('chat');
+            const prevScrollHeight = chatEl.scrollHeight;
+            const newFrom = Math.max(0, deps.getChatRenderedFrom() - deps.getChatPageSize());
+            const batchMsgs = messages.slice(newFrom, deps.getChatRenderedFrom());
+            const batchHtml = batchMsgs.map((msg, i) => cachedMsgHTML(activeId, msg, newFrom + i)).join('');
+            const hasOlder = newFrom > 0;
+            const sentinel = hasOlder
+                ? `<div id="chat-load-more" style="text-align:center;padding:12px;color:var(--muted);font-size:12px;cursor:pointer" onclick="loadOlderMessages()">⬑ Carregar mensagens anteriores (${newFrom} restantes)</div>`
+                : '';
+
+            const oldSentinel = global.document.getElementById('chat-load-more');
+            if (oldSentinel) oldSentinel.remove();
+
+            chatEl.insertAdjacentHTML('afterbegin', sentinel + batchHtml);
+            deps.setChatRenderedFrom(newFrom);
+            deps.setChatRenderedCount(deps.getChatRenderedCount() + batchMsgs.length);
+
+            global.requestAnimationFrame(() => {
+                const newScrollHeight = chatEl.scrollHeight;
+                chatEl.scrollTop += (newScrollHeight - prevScrollHeight);
+                updateScrollBottomButton();
+                deps.renderMermaidBlocks();
+            });
+
+            setupChatObserver();
+        }
+
+        function setupChatObserver() {
+            cleanupChatObserver();
+            const sentinel = global.document.getElementById('chat-load-more');
+            if (!sentinel) return;
+
+            const observer = new global.IntersectionObserver((entries) => {
+                if (entries[0]?.isIntersecting) {
+                    loadOlderMessages();
+                }
+            }, { root: global.document.getElementById('chat'), rootMargin: '200px 0px 0px 0px' });
+
+            observer.observe(sentinel);
+            deps.setChatScrollObserver(observer);
+        }
+
         return {
             autoH,
+            cachedMsgHTML,
+            cleanupChatObserver,
             isChatNearBottom,
             isRenderableImageFile,
             renderInlineMessageImage,
@@ -213,6 +288,9 @@
             renderMessageFile,
             renderMessageMeta,
             renderMessageShell,
+            loadOlderMessages,
+            msgCacheKey,
+            setupChatObserver,
             updateScrollBottomButton,
             queueChatScrollToBottom,
             restoreChatScrollPosition,
