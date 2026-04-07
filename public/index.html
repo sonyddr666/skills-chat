@@ -3922,10 +3922,17 @@
                     if (!normalizedPath) return { error: 'path invalido' };
                     const fileName = String(args.name || messageFileName({ path: normalizedPath }) || 'arquivo').trim();
                     const mimeType = String(args.mimeType || guessMimeTypeFromFileName(fileName)).trim() || 'application/octet-stream';
-                    const answer = String(args.message || args.answer || `Arquivo preparado: ${fileName}`).trim();
+                    const answer = String(args.message || args.answer || `Arquivo preparado: ${fileName} em ${normalizedPath}`).trim();
                     return {
                         ok: true,
                         answer,
+                        path: normalizedPath,
+                        primary_path: normalizedPath,
+                        file: {
+                            path: normalizedPath,
+                            name: fileName,
+                            mimeType
+                        },
                         artifacts: [{
                             path: normalizedPath,
                             name: fileName,
@@ -3949,15 +3956,23 @@
                             create_dirs: args.create_dirs !== false
                         })
                     });
-                    const fileName = String(args.name || messageFileName({ path: normalizedPath }) || 'arquivo').trim();
+                    const savedPath = payload.path || normalizedPath;
+                    const fileName = String(args.name || messageFileName({ path: savedPath }) || 'arquivo').trim();
                     const mimeType = String(args.mimeType || guessMimeTypeFromFileName(fileName)).trim() || 'text/plain';
-                    const answer = String(args.message || args.answer || `Arquivo criado: ${fileName}`).trim();
+                    const answer = String(args.message || args.answer || `Arquivo criado: ${fileName} em ${savedPath}`).trim();
                     return {
                         ok: true,
                         answer,
+                        path: savedPath,
+                        primary_path: savedPath,
                         write: payload,
+                        file: {
+                            path: savedPath,
+                            name: fileName,
+                            mimeType
+                        },
                         artifacts: [{
-                            path: payload.path || normalizedPath,
+                            path: savedPath,
                             name: fileName,
                             mimeType
                         }]
@@ -5977,16 +5992,9 @@ return await createBackendApprovalRequest({
                 for (const [id, conversation] of Object.entries(source)) {
                     if (!conversation || typeof conversation !== 'object') continue;
                     const recentMessages = conversationMessages(conversation).slice(-60);
-                    const preservedAttachmentMessageIndexes = new Set(
-                        recentMessages
-                            .map((message, index) => (((message?.imgs?.length || 0) || (message?.files?.length || 0)) ? index : -1))
-                            .filter((index) => index >= 0)
-                            .slice(-3)
-                    );
-                    const msgs = recentMessages.map((message, msgIndex) => {
+                    const msgs = recentMessages.map((message) => {
                         if (!message || typeof message !== 'object') return message;
                         const nextMessage = { ...message };
-                        const preserveData = preservedAttachmentMessageIndexes.has(msgIndex);
 
                         if (Array.isArray(message.imgs)) {
                             nextMessage.imgs = message.imgs.filter(Boolean).map((img, index) => ({
@@ -5994,7 +6002,6 @@ return await createBackendApprovalRequest({
                                 name: img?.name || `imagem-${index + 1}`,
                                 path: img?.path || '',
                                 downloadUrl: img?.downloadUrl || '',
-                                ...(preserveData && img?.data ? { data: img.data } : {}),
                                 omitted: true
                             }));
                         }
@@ -6004,8 +6011,7 @@ return await createBackendApprovalRequest({
                                 name: file?.name || 'arquivo',
                                 mimeType: file?.mimeType || file?.type || '',
                                 path: file?.path || '',
-                                downloadUrl: file?.downloadUrl || '',
-                                ...(preserveData && file?.data ? { data: file.data } : {})
+                                downloadUrl: file?.downloadUrl || ''
                             }));
                         }
 
@@ -6357,7 +6363,7 @@ return await createBackendApprovalRequest({
                 setStorageItem('gc_activeId', activeId || '', { silent: true });
                 broadcastConversationSnapshot(compacted, activeId || null);
                 if (!saved) {
-                    toast('âš  Armazenamento local cheio. O navegador reduziu o histÃ³rico salvo.');
+                    toast('Armazenamento local cheio. O navegador reduziu o historico salvo.');
                 }
             }
             const jobsRuntime = window.SkillFlowJobs.init({

@@ -47,25 +47,17 @@
         for (const [id, conversation] of ordered) {
             const allMessages = Array.isArray(conversation?.msgs) ? conversation.msgs : [];
             const msgs = allMessages.slice(-maxMessagesPerConversation);
-            const preservedAttachmentMessageIndexes = new Set(
-                msgs
-                    .map((message, index) => (((message?.imgs?.length || 0) || (message?.files?.length || 0)) ? index : -1))
-                    .filter((index) => index >= 0)
-                    .slice(-3)
-            );
             compacted[id] = {
                 ...conversation,
-                msgs: msgs.map((message, msgIndex) => {
+                msgs: msgs.map((message) => {
                     if (!message || typeof message !== 'object') return message;
                     const nextMessage = { ...message };
-                    const preserveData = preservedAttachmentMessageIndexes.has(msgIndex);
                     if (Array.isArray(message.imgs)) {
                         nextMessage.imgs = message.imgs.filter(Boolean).map((img, index) => ({
                             mimeType: img?.mimeType || 'image/*',
                             name: img?.name || `imagem-${index + 1}`,
                             path: img?.path || '',
                             downloadUrl: img?.downloadUrl || '',
-                            ...(preserveData && img?.data ? { data: img.data } : {}),
                             omitted: true
                         }));
                     }
@@ -74,8 +66,7 @@
                             name: file?.name || 'arquivo',
                             mimeType: file?.mimeType || file?.type || '',
                             path: file?.path || '',
-                            downloadUrl: file?.downloadUrl || '',
-                            ...(preserveData && file?.data ? { data: file.data } : {})
+                            downloadUrl: file?.downloadUrl || ''
                         }));
                     }
                     return nextMessage;

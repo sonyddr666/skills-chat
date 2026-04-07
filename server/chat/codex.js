@@ -528,6 +528,7 @@ export function createCodexModule({
 
     const content = [];
     const references = [];
+    const exactPaths = [];
 
     for (const file of artifacts) {
       const name = typeof file?.name === "string" && file.name.trim() ? file.name.trim() : "arquivo";
@@ -536,31 +537,41 @@ export function createCodexModule({
         : "application/octet-stream";
       const relPath = typeof file?.path === "string" && file.path.trim() ? file.path.trim() : "";
 
-      if (mimeType.toLowerCase().startsWith("image/")) {
-        const imageUrl = await buildImageDataUrl(file, user);
-        references.push(`[Imagem retornada por tool: ${name} (${mimeType})${relPath ? ` path=${relPath}` : ""}]`);
-        if (imageUrl) {
-          content.push({
-            type: "input_image",
+        if (mimeType.toLowerCase().startsWith("image/")) {
+          const imageUrl = await buildImageDataUrl(file, user);
+          references.push(`[Imagem retornada por tool: ${name} (${mimeType})${relPath ? ` path=${relPath}` : ""}]`);
+          if (relPath) exactPaths.push(relPath);
+          if (imageUrl) {
+            content.push({
+              type: "input_image",
             image_url: imageUrl,
             detail: "auto"
           });
           continue;
         }
+        }
+
+        if (relPath) exactPaths.push(relPath);
+        content.push(await buildCodexFileSummaryPart(file, user));
       }
 
-      content.push(await buildCodexFileSummaryPart(file, user));
-    }
+      if (references.length) {
+        content.unshift({
+          type: "input_text",
+          text: references.join("\n")
+        });
+      }
 
-    if (references.length) {
-      content.unshift({
-        type: "input_text",
-        text: references.join("\n")
-      });
-    }
+      if (exactPaths.length) {
+        const uniquePaths = [...new Set(exactPaths)];
+        content.unshift({
+          type: "input_text",
+          text: `Arquivos retornados por tool. Use exatamente estes paths nas proximas tools: ${uniquePaths.join(", ")}`
+        });
+      }
 
-    return content;
-  }
+      return content;
+    }
 
   async function expandCodexInputItems(inputItems, user = null) {
     const expanded = [];
