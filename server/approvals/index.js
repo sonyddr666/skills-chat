@@ -11,6 +11,7 @@ export function createApprovalsModule({
   parseJsonBody,
   clampApprovalTtlMs,
   defaultApprovalTtlMs,
+  globalApprovalPassword,
   generateApprovalId,
   normalizeApprovalAction,
   normalizeConversationId,
@@ -59,21 +60,26 @@ export function createApprovalsModule({
     await writeFile(userApprovalsFile(user), `${JSON.stringify(safeApprovals, null, 2)}\n`, "utf8");
   }
 
+  function isGlobalGrant(approval) {
+    return approval && approval.kind === "global_grant";
+  }
+
   function normalizeApprovalPayload(input, user) {
     if (!input || typeof input !== "object" || Array.isArray(input)) {
       throw new Error("Payload de approval invalido");
     }
-    const kind = String(input.kind || "single_action").trim().toLowerCase() === "conversation_grant"
+    const rawKind = String(input.kind || "single_action").trim().toLowerCase();
+    const kind = rawKind === "conversation_grant"
       ? "conversation_grant"
-      : "single_action";
-    const action = normalizeApprovalAction(input.action);
+      : (rawKind === "global_grant" ? "global_grant" : "single_action");
+    const action = normalizeApprovalAction(input.action || (kind === "global_grant" ? "*" : ""));
     if (!action) throw new Error("action ausente");
     const reason = String(input.reason || "").trim();
     if (!reason) throw new Error("reason ausente");
     const risk = String(input.risk || "medio").trim().toLowerCase().slice(0, 40) || "medio";
     const redactedPayload = redactApprovalPayload(action, input.payload);
     const conversationId = normalizeConversationId(input.conversation_id);
-    const allowedActions = kind === "conversation_grant"
+    const allowedActions = kind !== "single_action"
       ? (Array.isArray(input.allowed_actions) ? input.allowed_actions : ["*"])
         .map((value) => normalizeApprovalAction(value))
         .filter(Boolean)
@@ -81,8 +87,16 @@ export function createApprovalsModule({
     if (kind === "conversation_grant" && !conversationId) {
       throw new Error("conversation_id ausente");
     }
+    if (kind === "global_grant") {
+      const providedPassword = String(input.password || "").trim();
+      if (!providedPassword || providedPassword !== String(globalApprovalPassword || "").trim()) {
+        const error = new Error("senha mestra invalida");
+        error.statusCode = 403;
+        throw error;
+      }
+    }
     const now = Date.now();
-    const ttlMs = clampApprovalTtlMs(input.expires_in_ms ?? input.ttl_ms ?? (kind === "conversation_grant" ? 24 * 60 * 60 * 1000 : defaultApprovalTtlMs));
+    const ttlMs = clampApprovalTtlMs(input.expires_in_ms ?? input.ttl_ms ?? ((kind === "conversation_grant" || kind === "global_grant") ? 24 * 60 * 60 * 1000 : defaultApprovalTtlMs));
     const createdAt = new Date(now).toISOString();
     return {
       id: generateApprovalId(),
@@ -149,9 +163,9 @@ export function createApprovalsModule({
   }
 
   function approvalAllowsAction(approval, action, conversationId) {
-    if (!approval || approval.kind !== "conversation_grant") return false;
+    if (!approval || !["conversation_grant", "global_grant"].includes(String(approval.kind || ""))) return false;
     if (approval.status !== "approved") return false;
-    if (approval.conversation_id !== conversationId) return false;
+    if (!isGlobalGrant(approval) && approval.conversation_id !== conversationId) return false;
     const allowedActions = Array.isArray(approval.allowed_actions) ? approval.allowed_actions : [];
     return allowedActions.includes("*") || allowedActions.includes(action);
   }
@@ -188,7 +202,7 @@ export function createApprovalsModule({
     const id = String(approvalId || "").trim();
     const conversationId = normalizeConversationId(options.conversationId);
     if (!id) {
-      if (conversationId) {
+      {
         const approvals = await loadApprovals(user);
         const nextApprovals = approvals.map((item) => touchApprovalExpiration(item, user));
         const grant = nextApprovals.find((item) => approvalAllowsAction(item, normalizedAction, conversationId));
@@ -230,7 +244,7 @@ export function createApprovalsModule({
       error.statusCode = 403;
       throw error;
     }
-    if (approval.kind === "conversation_grant") {
+    if (approval.kind === "conversation_grant" || approval.kind === "global_grant") {
       if (!approvalAllowsAction(approval, normalizedAction, conversationId || approval.conversation_id)) {
         const error = new Error(`grant invalido para a acao ${normalizedAction}`);
         error.statusCode = 403;

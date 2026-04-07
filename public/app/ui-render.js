@@ -88,18 +88,34 @@
             if (!list) return;
             const currentConversationId = String(deps.getCurrentConversationId() || '').trim();
             const approvalItems = deps.getApprovalItems();
+            const globalGrant = deps.getCurrentGlobalGrant ? deps.getCurrentGlobalGrant() : null;
+            const globalControls = `<div class="approval-item ${globalGrant ? 'current-conv' : ''}">
+  <div class="approval-item-head">
+    <div>
+      <div class="approval-item-title">Liberacao total</div>
+      <div class="approval-item-meta">${globalGrant ? `Valida ate ${deps.esc(deps.formatApprovalExpiry(globalGrant.expires_at))}` : 'Permite todas as acoes sensiveis.'}</div>
+    </div>
+    <div class="approval-item-meta">${globalGrant ? 'ativa' : 'inativa'}</div>
+  </div>
+  <div class="approval-item-meta">${globalGrant ? 'Grant global ativo para este usuario.' : 'Use somente se voce quer modo sem travas.'}</div>
+  <div class="approval-item-actions">
+    ${globalGrant
+      ? `<button class="approval-mini-btn" type="button" onclick="revokeGlobalApprovalGrant()">Revogar liberacao total</button>`
+      : `<button class="approval-mini-btn" type="button" onclick="activateGlobalApprovalGrant()">Liberar tudo</button>`}
+  </div>
+</div>`;
             if (!approvalItems.length) {
-                list.innerHTML = `<div class="approval-item"><div class="approval-item-title">Nenhum approval registrado</div><div class="approval-item-meta">Quando uma acao sensivel precisar de autorizacao, ela aparecera aqui.</div></div>`;
+                list.innerHTML = `${globalControls}<div class="approval-item"><div class="approval-item-title">Nenhum approval registrado</div><div class="approval-item-meta">Quando uma acao sensivel precisar de autorizacao, ela aparecera aqui.</div></div>`;
                 return;
             }
-            list.innerHTML = approvalItems.map(item => {
+            list.innerHTML = globalControls + approvalItems.map(item => {
                 const isCurrentConversation = currentConversationId && item?.conversation_id === currentConversationId;
-                const canRevoke = item?.kind === 'conversation_grant' && ['approved', 'pending'].includes(String(item?.status || '').toLowerCase());
+                const canRevoke = ['conversation_grant', 'global_grant'].includes(String(item?.kind || '').toLowerCase()) && ['approved', 'pending'].includes(String(item?.status || '').toLowerCase());
                 const allowed = Array.isArray(item?.allowed_actions) ? item.allowed_actions.join(', ') : (item?.action || '');
                 return `<div class="approval-item ${isCurrentConversation ? 'current-conv' : ''}">
   <div class="approval-item-head">
     <div>
-      <div class="approval-item-title">${deps.esc(item.kind === 'conversation_grant' ? 'Grant da conversa' : item.action || 'Approval')}</div>
+      <div class="approval-item-title">${deps.esc(item.kind === 'conversation_grant' ? 'Grant da conversa' : (item.kind === 'global_grant' ? 'Grant global' : item.action || 'Approval'))}</div>
       <div class="approval-item-meta">
         <span class="approval-pill ${deps.esc(String(item.status || '').toLowerCase())}">${deps.esc(deps.approvalStatusLabel(item.status))}</span>
         <span>${deps.esc(item.id || '')}</span>

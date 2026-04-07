@@ -53,6 +53,7 @@ const MAX_EXEC_HISTORY_ITEMS = 100;
 const MAX_EXEC_LOG_TAIL_BYTES = 64 * 1024;
 const DEFAULT_APPROVAL_TTL_MS = 30 * 60 * 1000;
 const MAX_APPROVAL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const GLOBAL_APPROVAL_PASSWORD = process.env.SKILLFLOW_MASTER_APPROVAL_PASSWORD || "abelhadomato";
 const EXEC_ENABLED = ["1", "true", "yes", "on"].includes(String(process.env.SKILLFLOW_EXEC_ENABLED || "").trim().toLowerCase());
 const CLIENT_CODE_PLUGINS_ENABLED = ["1", "true", "yes", "on"].includes(String(process.env.SKILLFLOW_ENABLE_CLIENT_CODE_PLUGINS || "").trim().toLowerCase());
 const LIVE_CLIENT_ENABLED = ["1", "true", "yes", "on"].includes(String(process.env.SKILLFLOW_ENABLE_LIVE_CLIENT || "").trim().toLowerCase());
@@ -1324,6 +1325,7 @@ function normalizeConversationId(value) {
   parseJsonBody,
   clampApprovalTtlMs,
   defaultApprovalTtlMs: DEFAULT_APPROVAL_TTL_MS,
+  globalApprovalPassword: GLOBAL_APPROVAL_PASSWORD,
   generateApprovalId,
   normalizeApprovalAction,
   normalizeConversationId,

@@ -3433,6 +3433,21 @@
                 return allowed.includes('*') || allowed.includes(action);
             }
 
+            function currentGlobalGrant() {
+                return approvalItems.find(item =>
+                    item?.kind === 'global_grant'
+                    && item?.status === 'approved'
+                    && (!item?.expires_at || Date.parse(item.expires_at) > Date.now())
+                ) || null;
+            }
+
+            function hasGlobalGrant(action) {
+                const grant = currentGlobalGrant();
+                if (!grant) return false;
+                const allowed = Array.isArray(grant.allowed_actions) ? grant.allowed_actions : ['*'];
+                return allowed.includes('*') || allowed.includes(String(action || '').trim());
+            }
+
             async function refreshConversationGrantCache() {
                 try {
                     const data = await fetchLocalJson('/api/approvals');
@@ -3513,9 +3528,42 @@
                 await revokeApprovalById(grant.id);
             }
 
+            async function activateGlobalApprovalGrant() {
+                const password = window.prompt('Senha para liberar tudo:', '');
+                if (!password) {
+                    throw new Error('Liberacao total cancelada.');
+                }
+                const grant = await createBackendApprovalRequest({
+                    kind: 'global_grant',
+                    action: '*',
+                    reason: 'Liberacao total do sistema',
+                    risk: 'critico',
+                    allowed_actions: ['*'],
+                    expires_in_ms: 7 * 24 * 60 * 60 * 1000,
+                    password,
+                    payload: { scope: 'global' }
+                });
+                if (!grant?.id) throw new Error('Falha ao criar grant global.');
+                await approveBackendApprovalRequest(grant.id);
+                await refreshConversationGrantCache();
+                toast('Liberacao total ativada.');
+            }
+
+            async function revokeGlobalApprovalGrant() {
+                const grant = currentGlobalGrant();
+                if (!grant?.id) {
+                    toast('Nenhuma liberacao total ativa.');
+                    return;
+                }
+                await revokeApprovalById(grant.id);
+            }
+
             async function ensureSensitiveActionAuthorization(action, payload, options = {}) {
                 const normalizedAction = String(action || '').trim();
                 const conversationId = String(options.conversationId || activeId || '').trim();
+                if (hasGlobalGrant(normalizedAction)) {
+                    return {};
+                }
                 if (conversationId && hasConversationGrant(conversationId, normalizedAction)) {
                     return { conversation_id: conversationId };
                 }
@@ -6526,6 +6574,7 @@ return await createBackendApprovalRequest({
                 setPendingFiles: (next) => { pendingFiles = Array.isArray(next) ? next : []; },
                 getApprovalItems: () => approvalItems,
                 getCurrentConversationGrant: () => currentConversationGrant(),
+                getCurrentGlobalGrant: () => currentGlobalGrant(),
                 getCurrentConversationId: () => activeId,
                 getConversations: () => convs,
                 getActiveId: () => activeId,
