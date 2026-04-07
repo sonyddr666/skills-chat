@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
     const TTS_API = '/api/tts';
     const TTS_FIRST_CHUNK_MAX_CHARS = 120;
     const TTS_MAX_CHARS_PER_CHUNK = 250;
@@ -54,7 +54,7 @@
                 try {
                     data = JSON.parse(raw);
                 } catch (_) {
-                    throw new Error('Resposta invalida: ' + raw.slice(0, 80));
+                    throw new Error('Resposta inválida: ' + raw.slice(0, 80));
                 }
 
                 const rawList = Array.isArray(data) ? data : (data.voices || data.vozes || Object.values(data)[0] || []);
@@ -378,7 +378,7 @@
 
             const voice = global.document.getElementById('tts-voice-sel')?.value;
             if (!voice) {
-                deps.toast('⚠ Selecione uma voz em Configuracoes > TTS.');
+                deps.toast('⚠ Selecione uma voz em Configurações > TTS.');
                 return 'missing-voice';
             }
 

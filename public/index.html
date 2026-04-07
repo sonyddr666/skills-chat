@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR" data-theme="dark">
 
 <head>
@@ -107,7 +107,7 @@
             background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
         }
 
-        /* ─ OVERLAY ─ */
+        /* â”€ OVERLAY â”€ */
         #overlay {
             display: none;
             position: fixed;
@@ -120,7 +120,7 @@
             display: block;
         }
 
-        /* ─ SIDEBAR ─ */
+        /* â”€ SIDEBAR â”€ */
         #sidebar {
             width: 280px;
             min-width: 280px;
@@ -297,7 +297,7 @@
             color: var(--accent);
         }
 
-        /* ─ SIDEBAR COLLAPSE ─ */
+        /* â”€ SIDEBAR COLLAPSE â”€ */
         #sidebar {
             transition: transform .25s, width .25s, min-width .25s, background 0.3s;
         }
@@ -309,7 +309,7 @@
             border-right: none !important;
         }
 
-        /* ─ MAIN ─ */
+        /* â”€ MAIN â”€ */
         #main {
             flex: 1;
             display: flex;
@@ -320,7 +320,7 @@
             min-height: 0;
         }
 
-        /* ─ TOPBAR ─ */
+        /* â”€ TOPBAR â”€ */
         #topbar {
             padding: 10px 14px;
             border-bottom: 1px solid var(--border);
@@ -443,7 +443,7 @@
             align-items: center;
         }
 
-        /* ─ SETTINGS PANEL ─ */
+        /* â”€ SETTINGS PANEL â”€ */
         #cfg {
             background: var(--surface);
             border-bottom: 1px solid var(--border);
@@ -617,7 +617,7 @@
             flex: 1;
         }
 
-        /* ─ CHAT ─ */
+        /* â”€ CHAT â”€ */
         #chat {
             flex: 1;
             overflow-y: auto;
@@ -883,7 +883,7 @@
             justify-content: flex-end;
         }
 
-        /* ── Live Streaming Bubbles ── */
+        /* â”€â”€ Live Streaming Bubbles â”€â”€ */
         .row.model .bub:has(.live-model-text) {
             border-left: 3px solid var(--accent);
             animation: live-pulse 1.5s ease-in-out infinite;
@@ -896,7 +896,7 @@
             white-space: pre-wrap;
         }
         .live-model-text::after, .live-user-text::after {
-            content: '▍';
+            content: 'â–';
             animation: blink-caret 0.8s step-end infinite;
             color: var(--accent);
             font-weight: 300;
@@ -952,7 +952,7 @@
             object-fit: cover;
         }
 
-        /* ─ MERMAID DIAGRAMS ─ */
+        /* â”€ MERMAID DIAGRAMS â”€ */
         .mermaid-container {
             margin: 14px 0;
             border-radius: 10px;
@@ -1049,7 +1049,7 @@
             }
         }
 
-        /* ─ INPUT ─ */
+        /* â”€ INPUT â”€ */
         #ibar-container {
             padding: 0 14px 14px 14px;
             background: transparent;
@@ -1157,7 +1157,7 @@
             background: #dc2626;
         }
 
-        /* ─ IMAGE PREVIEW ─ */
+        /* â”€ IMAGE PREVIEW â”€ */
         #img-preview-container {
             max-width: 900px;
             margin: 0 auto;
@@ -1199,7 +1199,7 @@
             justify-content: center;
         }
 
-        /* ─ EMPTY ─ */
+        /* â”€ EMPTY â”€ */
         #empty {
             flex: 1;
             display: flex;
@@ -1248,7 +1248,7 @@
             border: 1px solid var(--border);
         }
 
-        /* ─ TOAST ─ */
+        /* â”€ TOAST â”€ */
         #toast {
             position: fixed;
             bottom: 90px;
@@ -1318,7 +1318,7 @@
             }
         }
 
-        /* ─ SKILLS REGISTRY ─ */
+        /* â”€ SKILLS REGISTRY â”€ */
         #plugin-btn {
             background: var(--s2);
             border: 1px solid var(--border);
@@ -1836,7 +1836,7 @@
         }
 
 
-        /* ─ MIC BUTTON ─ */
+        /* â”€ MIC BUTTON â”€ */
         #mic-btn {
             background: none;
             border: none;
@@ -1894,7 +1894,7 @@
             display: block;
         }
 
-        /* ─ TTS ─ */
+        /* â”€ TTS â”€ */
         .tts-btn {
             background: none;
             border: none;
@@ -1977,7 +1977,7 @@
             color: var(--muted);
         }
 
-        /* ─ LAYOUT WRAPPER ─ */
+        /* â”€ LAYOUT WRAPPER â”€ */
         #wrapper {
             display: flex;
             flex: 1;
@@ -1986,7 +1986,7 @@
         }
 
 
-        /* ─ LIVE VOICE SELECTOR ─ */
+        /* â”€ LIVE VOICE SELECTOR â”€ */
         .sg-live-voice {
             display: flex;
             flex-direction: column;
@@ -2024,7 +2024,40 @@
             display: inline-block;
         }
 
-        /* ─ LIVE MODE ─ */
+        #attach-btn::before,
+        #mic-btn::before,
+        #send-btn::before,
+        #live-btn::before,
+        #live-screen-btn::before,
+        #stop-btn::before {
+            margin-right: 6px;
+        }
+
+        #attach-btn::before { content: '📎'; }
+        #mic-btn::before { content: '🎙'; }
+        #live-btn::before { content: '◉'; }
+        #live-screen-btn::before { content: '🖥'; }
+        #send-btn::before { content: '➤'; }
+        #stop-btn::before { content: '■'; }
+
+        .live-label {
+            display: none;
+        }
+
+        #attach-btn,
+        #mic-btn,
+        #live-btn,
+        #live-screen-btn,
+        #send-btn,
+        #stop-btn {
+            min-width: 42px;
+            padding-inline: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* â”€ LIVE MODE â”€ */
         #live-btn {
             background: none;
             border: 1px solid var(--border);
@@ -2154,7 +2187,7 @@
             transition: width linear;
         }
 
-        /* ─ MESSAGE ANIMATIONS ─ */
+        /* â”€ MESSAGE ANIMATIONS â”€ */
         @keyframes msgFadeIn {
             from {
                 opacity: 0;
@@ -2171,7 +2204,7 @@
             animation: msgFadeIn .35s cubic-bezier(.4, 0, .2, 1) both;
         }
 
-        /* ─ EDIT / REGEN BUTTONS ─ */
+        /* â”€ EDIT / REGEN BUTTONS â”€ */
         .msg-actions {
             display: flex;
             gap: 4px;
@@ -2249,7 +2282,7 @@
             font-size: 13px;
         }
 
-        /* ─ THINKING INDICATOR ─ */
+        /* â”€ THINKING INDICATOR â”€ */
         .thinking-indicator {
             display: flex;
             align-items: center;
@@ -2300,7 +2333,7 @@
             animation-delay: .3s;
         }
 
-        /* ─ DRAG & DROP OVERLAY ─ */
+        /* â”€ DRAG & DROP OVERLAY â”€ */
         #drop-overlay {
             display: none;
             position: fixed;
@@ -2338,7 +2371,7 @@
             }
         }
 
-        /* ─ OFFLINE BANNER ─ */
+        /* â”€ OFFLINE BANNER â”€ */
         #offline-banner {
             display: none;
             position: fixed;
@@ -2359,7 +2392,7 @@
             display: block;
         }
 
-        /* ─ RENAME CONVERSATION ─ */
+        /* â”€ RENAME CONVERSATION â”€ */
         .ci-rename-input {
             background: var(--s2);
             border: 1px solid var(--accent);
@@ -2372,7 +2405,7 @@
             font-family: inherit;
         }
 
-        /* ─ KEYBOARD SHORTCUTS MODAL ─ */
+        /* â”€ KEYBOARD SHORTCUTS MODAL â”€ */
         #shortcuts-modal {
             display: none;
             position: fixed;
@@ -2430,7 +2463,7 @@
             color: var(--text);
         }
 
-        /* ─ FILE TYPE BADGES ─ */
+        /* â”€ FILE TYPE BADGES â”€ */
         .file-preview {
             position: relative;
             display: flex;
@@ -2465,7 +2498,7 @@
             justify-content: center;
         }
 
-        /* ─ MOBILE PLUGIN PANEL ─ */
+        /* â”€ MOBILE PLUGIN PANEL â”€ */
         @media(max-width:768px) {
             #plugin-body {
                 flex-direction: column;
@@ -2488,7 +2521,7 @@
             }
         }
 
-        /* ─ SEARCH HIGHLIGHT ─ */
+        /* â”€ SEARCH HIGHLIGHT â”€ */
         .search-highlight {
             background: rgba(79, 142, 247, .25);
             border-radius: 2px;
@@ -2649,7 +2682,7 @@
             </div>
 
             <div id="sb-actions">
-                <button class="action-btn" onclick="newConversation()"><span>ï¼‹</span> Nova</button>
+                <button class="action-btn" onclick="newConversation()"><span>＋</span> Nova</button>
                 <button class="action-btn" onclick="exportConvs()" title="Exportar conversas"><span>⭳</span>
                     Exportar</button>
                 <label class="action-btn" title="Importar conversas">
@@ -2711,7 +2744,7 @@
                 <button id="cfg-btn" onclick="toggleCfg()">Config</button>
                 <button id="plugin-btn" onclick="togglePlugins()" title="Skills e plugins">Skills</button>
                 <button id="approvals-btn" onclick="toggleApprovalsPanel()" title="Approvals e grants">Approvals</button>
-                <button id="theme-btn" onclick="toggleTheme()" title="Alternar tema">Tema</button>
+                <button id="theme-btn" onclick="toggleTheme()" title="Alternar tema" aria-label="Alternar tema">🌙</button>
                 <span class="live-model-badge" id="live-model-badge">LIVE</span>
                 <button id="tb-expand" onclick="document.getElementById('topbar').classList.toggle('tb-expanded')" title="Mais opcoes">Mais</button>
             </div>
@@ -2719,16 +2752,16 @@
             <!-- SETTINGS -->
             <div id="cfg">
                 <div id="cfg-head">
-                    <span>Configuracao do modelo, voz e comportamento</span>
+                    <span>Configuração do modelo, voz e comportamento</span>
                     <button id="cfg-close" onclick="toggleCfg()" title="Fechar">x</button>
                 </div>
                 <div id="cfg-body">
                     <div class="cfg-inline-actions">
                         <button type="button" id="cfg-model-advanced-toggle" class="cfg-mini-btn"
-                            onclick="toggleModelAdvancedSettings()">Mostrar ajustes avancados</button>
+                            onclick="toggleModelAdvancedSettings()">Mostrar ajustes avançados</button>
                         <button type="button" id="cfg-model-defaults" class="cfg-mini-btn"
-                            onclick="resetModelAdvancedSettings()">Usar padroes</button>
-                        <span id="cfg-model-hint" class="cfg-hint">Os controles avancados ficam escondidos por padrao.</span>
+                            onclick="resetModelAdvancedSettings()">Usar padrões</button>
+                        <span id="cfg-model-hint" class="cfg-hint">Os controles avançados ficam escondidos por padrão.</span>
                     </div>
                     <div id="cfg-model-advanced">
                     <div class="sg" id="temp-grp" style="min-width:160px">
@@ -2772,10 +2805,10 @@
                             <button type="button" class="action-btn" onclick="loadSystemPromptPresets()">Atualizar</button>
                         </div>
                         <textarea class="ta" id="sysp" oninput="save()"
-                            placeholder="Ex: Voce e um assistente com skills, function calling e foco em operacoes, arquivos, integracoes e automacoes."></textarea>
+                            placeholder="Ex: Você é um assistente com skills, function calling e foco em operações, arquivos, integrações e automações."></textarea>
                     </div>
                     <div class="sg sg-tts" id="tts-voice-grp">
-                        <label>TTS - Voz de saida</label>
+                        <label>TTS - Voz de saída</label>
                         <select id="tts-voice-sel" onchange="saveTTSCfg()">
                             <option value="">Carregando vozes...</option>
                         </select>
@@ -2786,9 +2819,7 @@
                             </label>
                             Auto-falar respostas do assistente
                         </div>
-                        <button onclick="ttsLoadVoices()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;margin-top:2px">Atualizar vozes</button>
-                        <label style="font-size:10px;color:var(--muted);margin-top:4px">Ou cole o Voice ID
-                            manualmente:</label>
+                        <label style="font-size:10px;color:var(--muted);margin-top:4px">Ou cole o Voice ID manualmente:</label>
                         <input type="text" id="tts-voice-manual" placeholder="default--xxx__voicename"
                             style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:5px 8px;font-size:11px;font-family:monospace;outline:none"
                             oninput="const s=document.getElementById('tts-voice-sel');if(s&&this.value){const o=document.createElement('option');o.value=this.value;o.textContent='✏ '+this.value.split('__').pop();o.selected=true;s.insertBefore(o,s.firstChild);saveTTSCfg();}">
@@ -2805,7 +2836,7 @@
                             <option value="Orus">Orus (Masculino, Neutro)</option>
                             <option value="Zephyr">Zephyr (Nao-binario)</option>
                         </select>
-                        <span style="font-size:10px;color:var(--accent2);margin-top:2px">Vozes nativas do Gemini - audio bidirecional sem TTS externo</span>
+                        <span style="font-size:10px;color:var(--accent2);margin-top:2px">Vozes nativas do Gemini - áudio bidirecional sem TTS externo</span>
                     </div>
                 </div>
             </div>
@@ -2821,7 +2852,7 @@
                 </div>
                 <div id="plugin-body">
                     <div id="plugin-list"></div>
-                    <div id="plugin-editor" class="empty"><- Selecione ou crie uma skill</div>
+                    <div id="plugin-editor" class="empty">&larr; Selecione ou crie uma skill</div>
                 </div>
             </div>
 
@@ -2871,13 +2902,13 @@
                         <input type="file" id="file-in"
                             accept="image/png, image/jpeg, image/webp, image/heic, image/heif, application/pdf, text/plain, text/csv, application/json"
                             style="display:none" multiple onchange="handleFiles(event)">
-                        <button id="attach-btn" onclick="document.getElementById('file-in').click()" title="Anexar imagem">Anexar</button>
-                        <button id="mic-btn" onclick="toggleSpeech()" title="Falar">Mic</button>
-                        <button id="live-btn" onclick="toggleLive()" title="Modo Live - conversa de voz continua">Live<span class="live-label">Live</span></button>
-                        <button id="live-screen-btn" onclick="toggleLiveScreenShare()" title="Compartilhar tela no Gemini Live">Tela<span class="live-label">Tela</span></button>
+                        <button id="attach-btn" onclick="document.getElementById('file-in').click()" title="Anexar imagem" aria-label="Anexar imagem"></button>
+                        <button id="mic-btn" onclick="toggleSpeech()" title="Falar" aria-label="Microfone"></button>
+                        <button id="live-btn" onclick="toggleLive()" title="Modo Live - conversa de voz continua" aria-label="Modo Live"></button>
+                        <button id="live-screen-btn" onclick="toggleLiveScreenShare()" title="Compartilhar tela no Gemini Live" aria-label="Compartilhar tela"></button>
                         <textarea id="msg" placeholder="Digite sua mensagem, peca uma skill ou descreva um workflow..." rows="1"></textarea>
-                        <button id="send-btn" class="iBtn" onclick="send()" title="Enviar">Enviar</button>
-                        <button id="stop-btn" class="iBtn" onclick="stop()" title="Parar geracao">Parar</button>
+                        <button id="send-btn" class="iBtn" onclick="send()" title="Enviar" aria-label="Enviar"></button>
+                        <button id="stop-btn" class="iBtn" onclick="stop()" title="Parar geração" aria-label="Parar geração"></button>
                     </div>
                 </div>
             </div>
@@ -2896,7 +2927,7 @@
                 }
             });
 
-            // ─ RENDER MARKDOWN (safe: extracts mermaid BEFORE DOMPurify) ─
+            // â”€ RENDER MARKDOWN (safe: extracts mermaid BEFORE DOMPurify) â”€
             function renderMarkdown(rawText) {
                 if (!rawText) return '';
                 try {
@@ -2908,20 +2939,20 @@
                     parts.forEach(part => {
                         const mmdMatch = part.match(/^```mermaid\n?([\s\S]*?)```$/);
                         if (mmdMatch) {
-                            // ── Mermaid block: completely bypass DOMPurify ──
+                            // â”€â”€ Mermaid block: completely bypass DOMPurify â”€â”€
                             const uid = 'mmd-' + Math.random().toString(36).substr(2, 9);
                             const encoded = encodeURIComponent(mmdMatch[1].trim());
                             html += `<div class="mermaid-container">
           <div class="mermaid-header">
-            <span>📊 Diagrama Mermaid</span>
-            <button class="dl-svg-btn" data-mmd-id="${uid}">⭳ Download SVG</button>
+            <span>ðŸ“Š Diagrama Mermaid</span>
+            <button class="dl-svg-btn" data-mmd-id="${uid}">â­³ Download SVG</button>
           </div>
           <div class="mermaid-body">
             <div class="mermaid" id="${uid}" data-src="${encoded}"></div>
           </div>
         </div>`;
                         } else if (part.trim()) {
-                            // ── Normal markdown: parse + sanitize safely ──
+                            // â”€â”€ Normal markdown: parse + sanitize safely â”€â”€
                             let chunk = DOMPurify.sanitize(marked.parse(part));
                             // Style code blocks with copy button
                             chunk = chunk
@@ -2961,7 +2992,7 @@
                 if (!blocks.length) return;
 
                 for (const block of blocks) {
-                    // Inject decoded mermaid source as textContent (not innerHTML — no XSS risk)
+                    // Inject decoded mermaid source as textContent (not innerHTML â€” no XSS risk)
                     block.textContent = decodeURIComponent(block.getAttribute('data-src'));
                     block.setAttribute('data-rendered', '1');
                     try {
@@ -2969,20 +3000,20 @@
                     } catch (e) {
                         const container = block.closest('.mermaid-container');
                         if (container) {
-                            container.innerHTML = `<div class="mermaid-error">⚠ Erro no diagrama: ${e.message}<br><small>Código: ${esc(decodeURIComponent(block.getAttribute('data-src') || ''))}</small></div>`;
+                            container.innerHTML = `<div class="mermaid-error">âš  Erro no diagrama: ${e.message}<br><small>CÃ³digo: ${esc(decodeURIComponent(block.getAttribute('data-src') || ''))}</small></div>`;
                         }
                     }
                 }
             }
 
-            // ─ EVENT DELEGATION for dynamic buttons ─
+            // â”€ EVENT DELEGATION for dynamic buttons â”€
             document.getElementById('chat').addEventListener('click', e => {
                 // Copy code button
                 const copyBtn = e.target.closest('.copy-code-btn');
                 if (copyBtn) {
                     const id = copyBtn.getAttribute('data-code-id');
                     const el = document.getElementById(id);
-                    if (el) navigator.clipboard.writeText(el.innerText).then(() => toast('✓ Código copiado!'));
+                    if (el) navigator.clipboard.writeText(el.innerText).then(() => toast('âœ“ CÃ³digo copiado!'));
                     return;
                 }
                 // Download SVG button
@@ -2997,7 +3028,7 @@
                     a.href = URL.createObjectURL(blob);
                     a.download = 'diagrama_' + id + '.svg';
                     document.body.appendChild(a); a.click(); a.remove();
-                    toast('✓ SVG baixado!');
+                    toast('âœ“ SVG baixado!');
                 }
             });
 
@@ -3066,12 +3097,12 @@
                 baixa: 'low',
                 medium: 'medium',
                 media: 'medium',
-                'média': 'medium',
+                'mÃ©dia': 'medium',
                 high: 'high',
                 alta: 'high',
                 xhigh: 'xhigh',
                 altissimo: 'xhigh',
-                'altíssimo': 'xhigh'
+                'altÃ­ssimo': 'xhigh'
             };
             const supportsThinking = m => G3.some(x => String(m || '').startsWith(x.replace('-preview', ''))) || String(m || '').includes('2.5');
 
@@ -3592,9 +3623,9 @@
                 };
             }
 
-            // ─═══════════════════════════════════════════════════════════════════
-            // PLUGIN ARENA — Dynamic Function Calling System
-            // ─═══════════════════════════════════════════════════════════════════
+            // â”€â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+            // PLUGIN ARENA â€” Dynamic Function Calling System
+            // â”€â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
             function evaluateMathExpression(expression) {
                 const source = String(expression || '').trim();
@@ -3712,8 +3743,8 @@
                     const history = slice.map((p, idx) => {
                         const ts = new Date(p.user.ts).toLocaleString('pt-BR');
                         const imgNote = p.user.imgs?.length ? ` [${p.user.imgs.length} img]` : '';
-                        const mt = p.model ? (p.model.text?.slice(0, 400) + (p.model.text?.length > 400 ? '…' : '')) : '[sem resposta]';
-                        return `--- Turno ${idx + 1} (${ts}) ---\nUSUÁRIO: ${p.user.text || ''}${imgNote}\nMODELO: ${mt}`;
+                        const mt = p.model ? (p.model.text?.slice(0, 400) + (p.model.text?.length > 400 ? 'â€¦' : '')) : '[sem resposta]';
+                        return `--- Turno ${idx + 1} (${ts}) ---\nUSUÃRIO: ${p.user.text || ''}${imgNote}\nMODELO: ${mt}`;
                     }).join('\n\n');
                     return { total_messages: msgs.length, turns_returned: slice.length, history: history || '(vazio)' };
                 },
@@ -3735,7 +3766,7 @@
                 },
                 search_conversation(args) {
                     const q = (args.query || '').toLowerCase();
-                    if (!q) return { error: 'query obrigatório' };
+                    if (!q) return { error: 'query obrigatÃ³rio' };
                     const msgs = convs[activeId]?.msgs || [];
                     const results = msgs.reduce((acc, m, i) => {
                         if (m.text?.toLowerCase().includes(q)) {
@@ -3803,7 +3834,7 @@
                         id: String(args.id || args.name || '').trim(),
                         name: skillName,
                         description: skillDescription,
-                        icon: String(args.icon || '⚙').trim() || '⚙',
+                        icon: String(args.icon || 'âš™').trim() || 'âš™',
                         enabled: args.enabled !== false,
                         parameters: args.parameters && typeof args.parameters === 'object'
                             ? args.parameters
@@ -3887,34 +3918,34 @@
             const DEFAULT_PLUGINS = [
                 {
                     id: 'bi_history', builtin: true, enabled: true, name: 'get_history',
-                    description: 'Recupera mensagens anteriores desta conversa. Use quando o usuário referenciar algo dito antes que não está no contexto atual.',
-                    parameters: { type: 'OBJECT', properties: { turns: { type: 'INTEGER', description: 'Turnos a recuperar (1-100)' }, from_start: { type: 'BOOLEAN', description: 'Se true retorna do início' } }, required: ['turns'] }
+                    description: 'Recupera mensagens anteriores desta conversa. Use quando o usuÃ¡rio referenciar algo dito antes que nÃ£o estÃ¡ no contexto atual.',
+                    parameters: { type: 'OBJECT', properties: { turns: { type: 'INTEGER', description: 'Turnos a recuperar (1-100)' }, from_start: { type: 'BOOLEAN', description: 'Se true retorna do inÃ­cio' } }, required: ['turns'] }
                 },
                 {
                     id: 'bi_time', builtin: true, enabled: true, name: 'get_current_time',
-                    description: 'Retorna data e hora atual do sistema do usuário.',
+                    description: 'Retorna data e hora atual do sistema do usuÃ¡rio.',
                     parameters: { type: 'OBJECT', properties: { timezone: { type: 'STRING', description: 'Fuso IANA ex: America/Sao_Paulo' } } }
                 },
                 {
                     id: 'bi_stats', builtin: true, enabled: true, name: 'get_conversation_stats',
-                    description: 'Estatísticas da conversa: mensagens, tokens usados, imagens enviadas.',
+                    description: 'EstatÃ­sticas da conversa: mensagens, tokens usados, imagens enviadas.',
                     parameters: { type: 'OBJECT', properties: {} }
                 },
                 {
                     id: 'bi_search', builtin: true, enabled: true, name: 'search_conversation',
-                    description: 'Busca mensagens na conversa atual que contenham texto específico.',
+                    description: 'Busca mensagens na conversa atual que contenham texto especÃ­fico.',
                     parameters: { type: 'OBJECT', properties: { query: { type: 'STRING', description: 'Texto a buscar' } }, required: ['query'] }
                 },
                 {
                     id: 'bi_calc', builtin: true, enabled: true, name: 'calculate',
-                    description: 'Avalia expressões matemáticas precisas. Use para cálculos numéricos.',
-                    parameters: { type: 'OBJECT', properties: { expression: { type: 'STRING', description: 'Expressão JS ex: 2+2*10, Math.sqrt(144)' } }, required: ['expression'] }
+                    description: 'Avalia expressÃµes matemÃ¡ticas precisas. Use para cÃ¡lculos numÃ©ricos.',
+                    parameters: { type: 'OBJECT', properties: { expression: { type: 'STRING', description: 'ExpressÃ£o JS ex: 2+2*10, Math.sqrt(144)' } }, required: ['expression'] }
                 },
 
-                // ── Declarative HTTP plugin (action type) ──
+                // â”€â”€ Declarative HTTP plugin (action type) â”€â”€
                 {
-                    id: 'bi_http_read', builtin: false, enabled: true, icon: '🌐', name: 'http_request',
-                    description: 'Acessa uma URL e lê o conteúdo da página em formato Markdown limpo. Use para ler artigos, posts, documentação ou extrair links de uma página para continuar navegando.',
+                    id: 'bi_http_read', builtin: false, enabled: true, icon: 'ðŸŒ', name: 'http_request',
+                    description: 'Acessa uma URL e lÃª o conteÃºdo da pÃ¡gina em formato Markdown limpo. Use para ler artigos, posts, documentaÃ§Ã£o ou extrair links de uma pÃ¡gina para continuar navegando.',
                     parameters: { url: { type: 'STRING', description: 'A URL completa para acessar (ex: https://exemplo.com/post)', required: true } },
                     action: {
                         type: 'http', method: 'GET',
@@ -3923,8 +3954,8 @@
                     }
                 },
                 {
-                    id: 'wf_ghost_search', builtin: false, enabled: true, icon: '👻', name: 'ghost_search',
-                    description: 'Pesquisa na web via Ghost Search API (api.ghost1.cloud). Use para internet, notícias e research com filtros de modelo, foco, tempo e citações.',
+                    id: 'wf_ghost_search', builtin: false, enabled: true, icon: 'ðŸ‘»', name: 'ghost_search',
+                    description: 'Pesquisa na web via Ghost Search API (api.ghost1.cloud). Use para internet, notÃ­cias e research com filtros de modelo, foco, tempo e citaÃ§Ãµes.',
                     parameters: {
                         type: 'OBJECT',
                         properties: {
@@ -3932,8 +3963,8 @@
                             model: { type: 'STRING', description: 'Modelo opcional. Ex: best, claude-4.6-opus' },
                             focus: { type: 'STRING', description: 'Foco opcional: web, academic, youtube, reddit, wolfram' },
                             time_range: { type: 'STRING', description: 'Janela opcional: all, day, week, month, year' },
-                            citation_mode: { type: 'STRING', description: 'Modo de citação opcional: markdown, default, clean' },
-                            user_id: { type: 'STRING', description: 'ID opcional do usuário ou conversa' },
+                            citation_mode: { type: 'STRING', description: 'Modo de citaÃ§Ã£o opcional: markdown, default, clean' },
+                            user_id: { type: 'STRING', description: 'ID opcional do usuÃ¡rio ou conversa' },
                             approval_id: { type: 'STRING', description: 'Approval emitido pelo backend para autorizar a integracao externa' }
                         },
                         required: ['query']
@@ -3958,7 +3989,7 @@
                     }
                 },
                 {
-                    id: 'sv_fs_list', builtin: false, enabled: true, icon: '📁', name: 'server_list_files',
+                    id: 'sv_fs_list', builtin: false, enabled: true, icon: 'ðŸ“', name: 'server_list_files',
                     description: 'Lista arquivos e pastas da workspace do servidor via backend local. Isso navega somente a workspace do usuario e nao o registro real de skills da plataforma.',
                     parameters: {
                         type: 'OBJECT',
@@ -3973,8 +4004,8 @@
                     }
                 },
                 {
-                    id: 'sv_fs_read', builtin: false, enabled: true, icon: '📄', name: 'server_read_file',
-                    description: 'Lê um arquivo de texto da workspace do servidor via backend local. Use para abrir, inspecionar e reutilizar arquivos existentes no deploy.',
+                    id: 'sv_fs_read', builtin: false, enabled: true, icon: 'ðŸ“„', name: 'server_read_file',
+                    description: 'LÃª um arquivo de texto da workspace do servidor via backend local. Use para abrir, inspecionar e reutilizar arquivos existentes no deploy.',
                     parameters: {
                         type: 'OBJECT',
                         properties: {
@@ -3989,14 +4020,14 @@
                     }
                 },
                 {
-                    id: 'sv_fs_write', builtin: false, enabled: true, icon: '📝', name: 'server_write_file',
+                    id: 'sv_fs_write', builtin: false, enabled: true, icon: 'ðŸ“', name: 'server_write_file',
                     description: 'Cria ou edita um arquivo de texto na workspace do servidor via backend local. Isso cria arquivo real, mas nao registra uma skill da plataforma por si so.',
                     parameters: {
                         type: 'OBJECT',
                         properties: {
                             path: { type: 'STRING', description: 'Caminho relativo do arquivo a criar ou editar' },
-                            content: { type: 'STRING', description: 'Conteúdo completo a salvar no arquivo' },
-                            create_dirs: { type: 'BOOLEAN', description: 'Cria pastas pai automaticamente quando necessário' }
+                            content: { type: 'STRING', description: 'ConteÃºdo completo a salvar no arquivo' },
+                            create_dirs: { type: 'BOOLEAN', description: 'Cria pastas pai automaticamente quando necessÃ¡rio' }
                         },
                         required: ['path', 'content']
                     },
@@ -4014,7 +4045,7 @@
                     }
                 },
                 {
-                    id: 'sv_fs_mkdir', builtin: false, enabled: true, icon: '📂', name: 'server_make_directory',
+                    id: 'sv_fs_mkdir', builtin: false, enabled: true, icon: 'ðŸ“‚', name: 'server_make_directory',
                     description: 'Cria uma pasta na workspace do servidor via backend local. Isso so cria diretorio na workspace; nao cria uma skill registrada.',
                     parameters: {
                         type: 'OBJECT',
@@ -4034,7 +4065,7 @@
                     }
                 },
                 {
-                    id: 'sv_fs_rename', builtin: false, enabled: true, icon: '✏️', name: 'server_rename_path',
+                    id: 'sv_fs_rename', builtin: false, enabled: true, icon: 'âœï¸', name: 'server_rename_path',
                     description: 'Renomeia ou move um arquivo/pasta dentro da workspace do servidor via backend local.',
                     parameters: {
                         type: 'OBJECT',
@@ -4056,8 +4087,8 @@
                     }
                 },
                 {
-                    id: 'sv_fs_delete', builtin: false, enabled: true, icon: '🗑️', name: 'server_delete_path',
-                    description: 'Apaga um arquivo ou pasta da workspace do servidor via backend local. Use com cuidado para exclusões reais no deploy.',
+                    id: 'sv_fs_delete', builtin: false, enabled: true, icon: 'ðŸ—‘ï¸', name: 'server_delete_path',
+                    description: 'Apaga um arquivo ou pasta da workspace do servidor via backend local. Use com cuidado para exclusÃµes reais no deploy.',
                     parameters: {
                         type: 'OBJECT',
                         properties: {
@@ -4074,17 +4105,17 @@
                     }
                 },
                 {
-                    id: 'wf_context', builtin: true, enabled: true, icon: '🗂️', name: 'get_workspace_context',
+                    id: 'wf_context', builtin: true, enabled: true, icon: 'ðŸ—‚ï¸', name: 'get_workspace_context',
                     description: 'Retorna o contexto real do usuario atual: conversa, modelo, skills registradas, skills habilitadas e pastas skill_* encontradas na workspace.',
                     parameters: { type: 'OBJECT', properties: { path: { type: 'STRING', description: 'Caminho opcional dentro da workspace para procurar skill_*' } } }
                 },
                 {
-                    id: 'wf_memory_set', builtin: false, enabled: true, icon: '🧠', name: 'save_user_memory',
-                    description: 'Salva uma memória curta ou longa do usuário em LocalStorage para preferências, contexto recorrente e projeto.',
+                    id: 'wf_memory_set', builtin: false, enabled: true, icon: 'ðŸ§ ', name: 'save_user_memory',
+                    description: 'Salva uma memÃ³ria curta ou longa do usuÃ¡rio em LocalStorage para preferÃªncias, contexto recorrente e projeto.',
                     parameters: {
                         type: 'OBJECT',
                         properties: {
-                            key: { type: 'STRING', description: 'Chave da memória' },
+                            key: { type: 'STRING', description: 'Chave da memÃ³ria' },
                             value: { type: 'STRING', description: 'Valor a ser salvo' },
                             namespace: { type: 'STRING', description: 'Agrupador opcional, ex: user, workspace, project' }
                         },
@@ -4099,13 +4130,13 @@ bag[ns][args.key] = { value: args.value, updated_at: new Date().toISOString() };
 return { ok: true, namespace: ns, key: args.key, stored: bag[ns][args.key] };`
                 },
                 {
-                    id: 'wf_memory_get', builtin: false, enabled: true, icon: '📚', name: 'read_user_memory',
-                    description: 'Lê memórias salvas do usuário ou do projeto para personalização e continuidade.',
+                    id: 'wf_memory_get', builtin: false, enabled: true, icon: 'ðŸ“š', name: 'read_user_memory',
+                    description: 'LÃª memÃ³rias salvas do usuÃ¡rio ou do projeto para personalizaÃ§Ã£o e continuidade.',
                     parameters: {
                         type: 'OBJECT',
                         properties: {
                             namespace: { type: 'STRING', description: 'Agrupador opcional, ex: user, workspace, project' },
-                            key: { type: 'STRING', description: 'Chave específica opcional' }
+                            key: { type: 'STRING', description: 'Chave especÃ­fica opcional' }
                         }
                     },
                     code: `
@@ -4116,14 +4147,14 @@ if (args.key) return { namespace: ns, key: args.key, value: bag[ns][args.key] ??
 return { namespace: ns, entries: bag[ns] };`
                 },
                 {
-                    id: 'wf_approval', builtin: false, enabled: true, icon: '🛡️', name: 'request_human_approval',
-                    description: 'Registra uma aprovação humana pendente para ações sensíveis como publicar, deletar, pagar ou enviar para sistemas externos.',
+                    id: 'wf_approval', builtin: false, enabled: true, icon: 'ðŸ›¡ï¸', name: 'request_human_approval',
+                    description: 'Registra uma aprovaÃ§Ã£o humana pendente para aÃ§Ãµes sensÃ­veis como publicar, deletar, pagar ou enviar para sistemas externos.',
                     parameters: {
                         type: 'OBJECT',
                         properties: {
-                            action: { type: 'STRING', description: 'Ação que precisa de aprovação' },
-                            reason: { type: 'STRING', description: 'Justificativa e risco da ação' },
-                            risk: { type: 'STRING', description: 'Nível de risco, ex: baixo, médio, alto' },
+                            action: { type: 'STRING', description: 'AÃ§Ã£o que precisa de aprovaÃ§Ã£o' },
+                            reason: { type: 'STRING', description: 'Justificativa e risco da aÃ§Ã£o' },
+                            risk: { type: 'STRING', description: 'NÃ­vel de risco, ex: baixo, mÃ©dio, alto' },
                             payload: { type: 'OBJECT', description: 'Payload redigido da operacao sensivel', properties: {} }
                         },
                         required: ['action', 'reason']
@@ -4137,22 +4168,22 @@ return await createBackendApprovalRequest({
 });`
                 },
                 {
-                    id: 'wf_market', builtin: true, enabled: true, icon: '🧩', name: 'list_skill_marketplace',
+                    id: 'wf_market', builtin: true, enabled: true, icon: 'ðŸ§©', name: 'list_skill_marketplace',
                     description: 'Lista as skills reais registradas, as skills habilitadas e as pastas skill_* da workspace do usuario atual. Nao retorna catalogo fake.',
                     parameters: { type: 'OBJECT', properties: { path: { type: 'STRING', description: 'Caminho opcional dentro da workspace para procurar skill_*' } } }
                 },
                 {
-                    id: 'sv_skill_list', builtin: true, enabled: true, icon: '🧾', name: 'list_registered_skills',
+                    id: 'sv_skill_list', builtin: true, enabled: true, icon: 'ðŸ§¾', name: 'list_registered_skills',
                     description: 'Lista as skills customizadas reais salvas no registro da plataforma para o usuario atual.',
                     parameters: { type: 'OBJECT', properties: {} }
                 },
                 {
-                    id: 'sv_skill_discover', builtin: true, enabled: true, icon: '🔎', name: 'discover_workspace_skills',
+                    id: 'sv_skill_discover', builtin: true, enabled: true, icon: 'ðŸ”Ž', name: 'discover_workspace_skills',
                     description: 'Procura pastas skill_* dentro da workspace do usuario atual e mostra quais parecem candidatas a skill.',
                     parameters: { type: 'OBJECT', properties: { path: { type: 'STRING', description: 'Caminho opcional dentro da workspace para procurar skill_*' } } }
                 },
                 {
-                    id: 'sv_skill_save', builtin: true, enabled: true, icon: '✨', name: 'save_registered_skill',
+                    id: 'sv_skill_save', builtin: true, enabled: true, icon: 'âœ¨', name: 'save_registered_skill',
                     description: 'Cria ou atualiza uma skill real no registro da plataforma. Use esta tool quando precisar criar uma skill utilizavel; escrever arquivos na workspace nao basta.',
                     parameters: {
                         type: 'OBJECT',
@@ -4170,7 +4201,7 @@ return await createBackendApprovalRequest({
                     }
                 },
                 {
-                    id: 'sv_skill_delete', builtin: true, enabled: true, icon: '🗑️', name: 'delete_registered_skill',
+                    id: 'sv_skill_delete', builtin: true, enabled: true, icon: 'ðŸ—‘ï¸', name: 'delete_registered_skill',
                     description: 'Apaga uma skill customizada real do registro da plataforma pelo id.',
                     parameters: {
                         type: 'OBJECT',
@@ -4182,7 +4213,7 @@ return await createBackendApprovalRequest({
                     }
                 },
                 {
-                    id: 'wf_attach_file_chat', builtin: true, enabled: true, icon: '📎', name: 'attach_workspace_file_to_chat',
+                    id: 'wf_attach_file_chat', builtin: true, enabled: true, icon: 'ðŸ“Ž', name: 'attach_workspace_file_to_chat',
                     description: 'Anexa um arquivo ja existente da workspace persistente do usuario na resposta do chat. Use quando precisar entregar um arquivo ao usuario na conversa.',
                     parameters: {
                         type: 'OBJECT',
@@ -4196,7 +4227,7 @@ return await createBackendApprovalRequest({
                     }
                 },
                 {
-                    id: 'wf_create_text_file', builtin: true, enabled: true, icon: '📄', name: 'create_text_file_for_user',
+                    id: 'wf_create_text_file', builtin: true, enabled: true, icon: 'ðŸ“„', name: 'create_text_file_for_user',
                     description: 'Cria um arquivo de texto, markdown, json ou csv na workspace persistente do usuario e devolve esse arquivo como anexo na conversa.',
                     parameters: {
                         type: 'OBJECT',
@@ -4321,7 +4352,7 @@ return await createBackendApprovalRequest({
                 NULL: 'null'
             };
 
-            // ─ RESOLVE template {{param}} in strings ─
+            // â”€ RESOLVE template {{param}} in strings â”€
             function resolveTemplate(template, args) {
                 return String(template).replace(/\{\{(\w+)\}\}/g, (_, k) => encodeURIComponent(args[k] ?? ''));
             }
@@ -4517,13 +4548,13 @@ return await createBackendApprovalRequest({
             function fileIconForMessage(file) {
                 const mimeType = String(file?.mimeType || file?.type || '').toLowerCase();
                 const name = String(file?.name || file?.path || '').toLowerCase();
-                if (mimeType.startsWith('image/')) return '🖼️';
-                if (mimeType.includes('pdf') || name.endsWith('.pdf')) return '📄';
+                if (mimeType.startsWith('image/')) return 'ðŸ–¼ï¸';
+                if (mimeType.includes('pdf') || name.endsWith('.pdf')) return 'ðŸ“„';
                 if (mimeType.includes('json') || name.endsWith('.json')) return '{}';
-                if (mimeType.includes('zip') || mimeType.includes('gzip') || /\.(zip|gz|tgz|7z|rar)$/.test(name)) return '🗜️';
-                if (mimeType.includes('audio') || /\.(mp3|wav|ogg|m4a)$/.test(name)) return '🎵';
-                if (mimeType.includes('video') || /\.(mp4|mov|webm|mkv)$/.test(name)) return '🎬';
-                return '📝';
+                if (mimeType.includes('zip') || mimeType.includes('gzip') || /\.(zip|gz|tgz|7z|rar)$/.test(name)) return 'ðŸ—œï¸';
+                if (mimeType.includes('audio') || /\.(mp3|wav|ogg|m4a)$/.test(name)) return 'ðŸŽµ';
+                if (mimeType.includes('video') || /\.(mp4|mov|webm|mkv)$/.test(name)) return 'ðŸŽ¬';
+                return 'ðŸ“';
             }
 
             function buildMessageFileDownloadUrl(file) {
@@ -4597,7 +4628,7 @@ return await createBackendApprovalRequest({
                     .replace(/\s+/g, ' ')
                     .trim();
                 if (!text) return '';
-                return text.length > maxLen ? text.slice(0, Math.max(0, maxLen - 1)) + '…' : text;
+                return text.length > maxLen ? text.slice(0, Math.max(0, maxLen - 1)) + 'â€¦' : text;
             }
 
             function summarizeTraceValue(value, maxLen = 420) {
@@ -4692,7 +4723,7 @@ return await createBackendApprovalRequest({
                 if (files.length) extra.push(`${files.length} artifact${files.length > 1 ? 's' : ''}`);
                 pushMessageTrace(message, createTraceStep('tool_result', {
                     title: callName || 'tool_result',
-                    meta: extra.join(' • '),
+                    meta: extra.join(' â€¢ '),
                     body: resultSummary
                 }));
             }
@@ -4706,7 +4737,7 @@ return await createBackendApprovalRequest({
                 extra.push(`${steps.length} passo${steps.length > 1 ? 's' : ''}`);
                 return {
                     label,
-                    meta: extra.join(' • ')
+                    meta: extra.join(' â€¢ ')
                 };
             }
 
@@ -4750,7 +4781,7 @@ return await createBackendApprovalRequest({
                 return value;
             }
 
-            // ─ NORMALIZE parameter format: supports flat {url:{type,description}} OR JSON Schema ─
+            // â”€ NORMALIZE parameter format: supports flat {url:{type,description}} OR JSON Schema â”€
             function normalizeParams(raw) {
                 if (!raw) return { type: 'OBJECT', properties: {} };
                 if (raw.type === 'OBJECT' && raw.properties) return raw; // already JSON Schema
@@ -4879,12 +4910,12 @@ return await createBackendApprovalRequest({
                 const codexEntry = buildCodexToolEntries().find(entry => entry.callName === name);
                 const geminiEntry = buildGeminiToolEntries().find(entry => entry.callName === name);
                 const p = plugins.find(x => x.name === name && x.enabled) || codexEntry?.plugin || geminiEntry?.plugin;
-                if (!p) return { error: `Plugin '${name}' não encontrado` };
+                if (!p) return { error: `Plugin '${name}' nÃ£o encontrado` };
 
-                // ── Built-in native handler ──
+                // â”€â”€ Built-in native handler â”€â”€
                 if (p.builtin) {
                     const h = BUILTIN_HANDLERS[p.name];
-                    if (!h) return { error: `Handler builtin '${name}' não implementado` };
+                    if (!h) return { error: `Handler builtin '${name}' nÃ£o implementado` };
                     try { return h(args); } catch (e) { return { error: e.message }; }
                 }
 
@@ -4893,7 +4924,7 @@ return await createBackendApprovalRequest({
                     return runExecPluginAction(name, p.action || {}, args || {});
                 }
 
-                // ── HTTP action ──
+                // â”€â”€ HTTP action â”€â”€
                 if (actionType === 'http') {
                     try {
                         const method = (p.action.method || 'GET').toUpperCase();
@@ -4957,8 +4988,8 @@ return await createBackendApprovalRequest({
                     } catch (e) { return { error: `HTTP plugin '${name}': ${e.message}` }; }
                 }
 
-                // ── Code action (default) ──
-                if (!p.code?.trim()) return { error: 'Plugin sem código e sem action' };
+                // â”€â”€ Code action (default) â”€â”€
+                if (!p.code?.trim()) return { error: 'Plugin sem cÃ³digo e sem action' };
                 try {
                     if (!runtimeConfig.client_code_plugins_enabled) {
                         return { error: 'Plugins com codigo arbitrario estao desabilitados por politica neste ambiente.' };
@@ -4968,7 +4999,7 @@ return await createBackendApprovalRequest({
                 } catch (e) { return { error: `Plugin '${name}': ${e.message}` }; }
             }
 
-            // ─ PLUGIN ARENA UI ─
+            // â”€ PLUGIN ARENA UI â”€
             let activePluginId = null;
 
             function togglePlugins() {
@@ -5002,7 +5033,7 @@ return await createBackendApprovalRequest({
           <span class='toggle-slider'></span>
         </label>
       </div>
-      <div class='plugin-desc'>${esc((p.description || '').slice(0, 55))}${(p.description || '').length > 55 ? '…' : ''}</div>
+      <div class='plugin-desc'>${esc((p.description || '').slice(0, 55))}${(p.description || '').length > 55 ? 'â€¦' : ''}</div>
     </div>`).join('');
             }
 
@@ -5012,7 +5043,7 @@ return await createBackendApprovalRequest({
                     p.enabled = enabled;
                     savePlugins(false);
                     if (!p.builtin && customPluginIds.has(id)) {
-                        persistCustomPlugin(p).catch(e => toast('❌ Skill: ' + e.message.slice(0, 60)));
+                        persistCustomPlugin(p).catch(e => toast('âŒ Skill: ' + e.message.slice(0, 60)));
                     }
                 }
             }
@@ -5053,14 +5084,14 @@ return await createBackendApprovalRequest({
         <textarea class='editor-code' id='pe-action' style='min-height:90px;display:${p.action?.type && p.action.type !== 'code' ? 'block' : 'none'}'>${esc(JSON.stringify(p.action || {}, null, 2))}</textarea>
       </div>
       <div class='editor-field full' id='pe-code-wrap' style='display:${!p.action?.type || p.action.type === 'code' ? 'block' : 'none'}'>
-        <label>Código JS <span>disponível: args, convs, activeId</span></label>
-        <textarea class='editor-code' id='pe-code' style='min-height:110px'>${esc(p.code || '// args disponível\nreturn { result: args.input };')}</textarea>
+        <label>CÃ³digo JS <span>disponÃ­vel: args, convs, activeId</span></label>
+        <textarea class='editor-code' id='pe-code' style='min-height:110px'>${esc(p.code || '// args disponÃ­vel\nreturn { result: args.input };')}</textarea>
       </div>
     </div>
     <div class='editor-actions'>
-      <button class='btn-save' onclick='savePluginEdit(\"${id}\")'>💾 Salvar</button>
-      <button class='btn-test' onclick='testPlugin(\"${id}\")'>▶ Testar</button>
-      ${!p.builtin ? `<button class='btn-delete' onclick='deletePlugin(\"${id}\")'>🗑 Deletar</button>` : ''}
+      <button class='btn-save' onclick='savePluginEdit(\"${id}\")'>ðŸ’¾ Salvar</button>
+      <button class='btn-test' onclick='testPlugin(\"${id}\")'>â–¶ Testar</button>
+      ${!p.builtin ? `<button class='btn-delete' onclick='deletePlugin(\"${id}\")'>ðŸ—‘ Deletar</button>` : ''}
     </div>
     <div class='test-output' id='test-out'></div>`,
                     false;
@@ -5090,14 +5121,14 @@ return await createBackendApprovalRequest({
                 const at = document.getElementById('pe-action-type');
                 if (!p.builtin && ne) p.name = ne.value.trim().replace(/\s+/g, '_');
                 if (de) p.description = de.value.trim();
-                if (pe) { try { p.parameters = JSON.parse(pe.value); } catch (e) { toast('❌ Parâmetros JSON inválido: ' + e.message); return; } }
+                if (pe) { try { p.parameters = JSON.parse(pe.value); } catch (e) { toast('âŒ ParÃ¢metros JSON invÃ¡lido: ' + e.message); return; } }
                 if (!p.builtin && plugins.some(x => x.id !== p.id && x.name === p.name)) {
-                    toast('❌ Já existe uma skill com esse nome.');
+                    toast('âŒ JÃ¡ existe uma skill com esse nome.');
                     return;
                 }
                 const actionType = at?.value || 'code';
                 if (actionType === 'http' || actionType === 'exec') {
-                    if (ae) { try { p.action = JSON.parse(ae.value); } catch (e) { toast('❌ Action JSON inválido: ' + e.message); return; } }
+                    if (ae) { try { p.action = JSON.parse(ae.value); } catch (e) { toast('âŒ Action JSON invÃ¡lido: ' + e.message); return; } }
                     delete p.code;
                 } else {
                     if (!p.builtin && ce) p.code = ce.value;
@@ -5109,13 +5140,13 @@ return await createBackendApprovalRequest({
                         const saved = await persistCustomPlugin(p);
                         Object.assign(p, saved);
                     } catch (e) {
-                        toast('❌ Skill: ' + e.message);
+                        toast('âŒ Skill: ' + e.message);
                         return;
                     }
                 }
                 renderPluginList();
                 selectPlugin(id);
-                toast('✓ Plugin salvo!');
+                toast('âœ“ Plugin salvo!');
             }
 
             async function testPlugin(id) {
@@ -5139,12 +5170,12 @@ return await createBackendApprovalRequest({
                 plugins = plugins.filter(x => x.id !== id);
                 activePluginId = null; savePlugins(); renderPluginList();
                 const ed = document.getElementById('plugin-editor');
-                ed.classList.add('empty'); ed.innerHTML = '← Selecione ou crie uma skill';
+                ed.classList.add('empty'); ed.innerHTML = 'â† Selecione ou crie uma skill';
                 if (target && !target.builtin && customPluginIds.has(id)) {
                     try { await deleteCustomPluginOnServer(id); }
-                    catch (e) { toast('❌ Skill: ' + e.message); }
+                    catch (e) { toast('âŒ Skill: ' + e.message); }
                 }
-                toast('🗑 Skill deletada.');
+                toast('ðŸ—‘ Skill deletada.');
             }
 
             function newPlugin() {
@@ -5154,20 +5185,20 @@ return await createBackendApprovalRequest({
                     name: 'skill_' + plugins.filter(p => !p.builtin).length,
                     description: 'Descreva o que esta skill faz.',
                     parameters: { type: 'OBJECT', properties: { input: { type: 'STRING', description: 'Entrada' } }, required: ['input'] },
-                    code: '// args.input disponível\nreturn { result: args.input };'
+                    code: '// args.input disponÃ­vel\nreturn { result: args.input };'
                 });
                 savePlugins(); renderPluginList(); selectPlugin(id);
                 if (!document.getElementById('plugin-panel').classList.contains('on')) togglePlugins();
-                toast('✓ Nova skill criada!');
+                toast('âœ“ Nova skill criada!');
             }
 
-            // ─ THEME TOGGLE ─
+            // â”€ THEME TOGGLE â”€
             function toggleTheme() {
                 const html = document.documentElement;
                 const current = html.getAttribute('data-theme');
                 const next = current === 'dark' ? 'light' : 'dark';
                 html.setAttribute('data-theme', next);
-                document.getElementById('theme-btn').textContent = next === 'dark' ? '🌙' : '☀️';
+                document.getElementById('theme-btn').textContent = next === 'dark' ? '🌙' : '☀';
                 setStorageItem('gc_theme', next, { silent: true });
                 initMermaid();
                 // Re-render mermaid diagrams with new theme
@@ -5180,7 +5211,7 @@ return await createBackendApprovalRequest({
                 renderMermaidBlocks();
             }
 
-            // ─ SIDEBAR ─
+            // â”€ SIDEBAR â”€
             function openSidebar() {
                 const sb = document.getElementById('sidebar');
                 // On mobile: remove collapsed (if any) and open as drawer
@@ -5207,7 +5238,7 @@ return await createBackendApprovalRequest({
                 setStorageItem('gc_sb_collapsed', isCollapsed ? '1' : '0', { silent: true });
             }
 
-            // ─ SETTINGS ─
+            // â”€ SETTINGS â”€
             const DEFAULT_MODEL_ADVANCED_SETTINGS = {
                 temp: '1.0',
                 topp: '0.95',
@@ -5238,7 +5269,7 @@ return await createBackendApprovalRequest({
                 if (body) body.classList.toggle('on', !!open);
                 if (btn) {
                     btn.classList.toggle('on', !!open);
-                    btn.textContent = open ? 'Esconder ajustes avançados' : 'Mostrar ajustes avançados';
+                    btn.textContent = open ? 'Esconder ajustes avanÃ§ados' : 'Mostrar ajustes avanÃ§ados';
                 }
             }
 
@@ -5258,7 +5289,7 @@ return await createBackendApprovalRequest({
                 document.getElementById('maxt').value = DEFAULT_MODEL_ADVANCED_SETTINGS.maxt;
                 document.getElementById('think-lvl').value = DEFAULT_MODEL_ADVANCED_SETTINGS.think;
                 save();
-                toast('✓ Ajustes avançados restaurados para o padrão.');
+                toast('âœ“ Ajustes avanÃ§ados restaurados para o padrÃ£o.');
             }
 
             function applyModelAdvancedVisibility() {
@@ -5278,9 +5309,9 @@ return await createBackendApprovalRequest({
 
                 const hint = document.getElementById('cfg-model-hint');
                 if (hint) {
-                    if (isLiveModel(m)) hint.textContent = 'No Gemini Live, esses sliders não entram no modo WebSocket.';
-                    else if (isCodexModel(m)) hint.textContent = 'Nos modelos Codex/GPT-5, use reasoning; sampling clássico fica oculto.';
-                    else hint.textContent = 'Os controles avançados ficam escondidos por padrão.';
+                    if (isLiveModel(m)) hint.textContent = 'No Gemini Live, esses sliders nÃ£o entram no modo WebSocket.';
+                    else if (isCodexModel(m)) hint.textContent = 'Nos modelos Codex/GPT-5, use reasoning; sampling clÃ¡ssico fica oculto.';
+                    else hint.textContent = 'Os controles avanÃ§ados ficam escondidos por padrÃ£o.';
                 }
             }
 
@@ -5310,7 +5341,7 @@ return await createBackendApprovalRequest({
                 }
             }
 
-            // ─ PERSIST ─
+            // â”€ PERSIST â”€
             var convs = storageSync.getJson('gc_convs', {});
             var activeId = null;
             let generationControllers = new Map();
@@ -5416,18 +5447,18 @@ return await createBackendApprovalRequest({
                 if (!sel || !promptBox) return;
                 const preset = systemPromptPresets.find(item => (item.storage_key || `${item.scope || 'private'}:${item.id}`) === sel.value);
                 if (!preset) {
-                    toast('⚠ Selecione um preset valido.');
+                    toast('âš  Selecione um preset valido.');
                     return;
                 }
                 promptBox.value = preset.prompt || '';
                 save();
-                toast(`✓ Preset aplicado: ${preset.name}`);
+                toast(`âœ“ Preset aplicado: ${preset.name}`);
             }
 
             async function saveCurrentSystemPromptPreset() {
                 const promptBox = document.getElementById('sysp');
                 if (!promptBox || !promptBox.value.trim()) {
-                    toast('⚠ Escreva um system prompt antes de salvar.');
+                    toast('âš  Escreva um system prompt antes de salvar.');
                     return;
                 }
                 const currentId = document.getElementById('sysp-preset-sel')?.value || '';
@@ -5453,9 +5484,9 @@ return await createBackendApprovalRequest({
                     if (!res.ok || !data?.item?.id) throw new Error(data?.error || 'erro desconhecido');
                     await loadSystemPromptPresets(data.item.storage_key || `${data.item.scope || 'private'}:${data.item.id}`);
                     save();
-                    toast(`✓ Preset ${data.item.scope === 'shared' ? 'compartilhado' : 'privado'} salvo: ${data.item.name}`);
+                    toast(`âœ“ Preset ${data.item.scope === 'shared' ? 'compartilhado' : 'privado'} salvo: ${data.item.name}`);
                 } catch (error) {
-                    toast('⚠ Falha ao salvar preset: ' + (error.message || 'erro desconhecido'));
+                    toast('âš  Falha ao salvar preset: ' + (error.message || 'erro desconhecido'));
                 }
             }
 
@@ -5485,7 +5516,7 @@ return await createBackendApprovalRequest({
                 ensureCodexModels();
                 const theme = storageSync.get('gc_theme', 'dark');
                 document.documentElement.setAttribute('data-theme', theme);
-                document.getElementById('theme-btn').textContent = theme === 'dark' ? '🌙' : '☀️';
+                document.getElementById('theme-btn').textContent = theme === 'dark' ? '🌙' : '☀';
 
                 const s = readCfg();
                 const savedActiveId = storageSync.get('gc_activeId', '');
@@ -5534,7 +5565,7 @@ return await createBackendApprovalRequest({
                 document.getElementById('live-model-badge')?.classList.toggle('on', isLive);
             }
 
-            // ─ EXPORT / IMPORT ─
+            // â”€ EXPORT / IMPORT â”€
             function importedTimestamp(value, fallback = Date.now()) {
                 if (typeof value === 'number' && Number.isFinite(value)) return value;
                 if (typeof value === 'string' && value.trim()) {
@@ -5850,7 +5881,7 @@ return await createBackendApprovalRequest({
                 document.body.appendChild(el);
                 el.click();
                 el.remove();
-                toast('✓ Conversas exportadas!');
+                toast('âœ“ Conversas exportadas!');
             }
 
             function importConvs(e) {
@@ -5870,17 +5901,17 @@ return await createBackendApprovalRequest({
                         renderSidebar();
                 renderChat();
                         await window.__skillflowAccount?.syncState?.({ force: true });
-                        toast('✓ Conversas importadas!');
+                        toast('âœ“ Conversas importadas!');
                     } catch (err) {
                         console.error('Falha ao importar conversas:', err);
-                        toast('❌ Erro ao importar arquivo.');
+                        toast('âŒ Erro ao importar arquivo.');
                     }
                 };
                 reader.readAsText(file);
                 e.target.value = '';
             }
 
-            // ─ CONVERSATIONS ─
+            // â”€ CONVERSATIONS â”€
             function compactConversationsForStorage(source) {
                 if (!source || typeof source !== 'object' || Array.isArray(source)) return {};
                 const compacted = {};
@@ -6257,7 +6288,7 @@ return await createBackendApprovalRequest({
                 setStorageItem('gc_activeId', activeId || '', { silent: true });
                 broadcastConversationSnapshot(compacted, activeId || null);
                 if (!saved) {
-                    toast('⚠ Armazenamento local cheio. O navegador reduziu o histórico salvo.');
+                    toast('âš  Armazenamento local cheio. O navegador reduziu o histÃ³rico salvo.');
                 }
             }
             const jobsRuntime = window.SkillFlowJobs.init({
@@ -6406,11 +6437,11 @@ return await createBackendApprovalRequest({
                         });
                         if (!imagePayloads.length && !filePayloads.length) {
                             const count = (m.imgs?.length || 0) + (m.files?.length || 0);
-                            parts.push({ text: `[${count} arquivo(s) salvo(s) no workspace do usuário]` });
+                            parts.push({ text: `[${count} arquivo(s) salvo(s) no workspace do usuÃ¡rio]` });
                         }
                     } else if ((hasImgs || hasFiles) && !imgMsgIndices.has(i)) {
                         const count = (m.imgs?.length || 0) + (m.files?.length || 0);
-                        const note = `[${count} arquivo(s) enviado(s) — omitido(s) do contexto]`;
+                        const note = `[${count} arquivo(s) enviado(s) â€” omitido(s) do contexto]`;
                         parts.push({ text: (m.text ? m.text + '\n' : '') + note + (attachmentRefs ? '\n' + attachmentRefs : '') });
                     } else {
                         if (m.text) parts.push({ text: m.text });
@@ -6438,7 +6469,7 @@ return await createBackendApprovalRequest({
                 const body = { contents: trimmedContents, generationConfig: genCfg, tools: buildTools() };
                 const hasTools = body.tools?.length > 0 || body.tools?.[0]?.functionDeclarations?.length > 0;
                 const skillsInstruction = hasTools
-                    ? '\n\n[REGRA OPERACIONAL] Você tem ferramentas (skills) disponíveis. SEMPRE verifique se alguma skill resolve a pergunta ANTES de responder com texto. Use function calling em vez de verbalizar ações. Só responda verbalmente se nenhuma skill for adequada.'
+                    ? '\n\n[REGRA OPERACIONAL] VocÃª tem ferramentas (skills) disponÃ­veis. SEMPRE verifique se alguma skill resolve a pergunta ANTES de responder com texto. Use function calling em vez de verbalizar aÃ§Ãµes. SÃ³ responda verbalmente se nenhuma skill for adequada.'
                     : '';
                 const fullSysp = (options.systemPrompt || '') + skillsInstruction;
                 if (fullSysp.trim()) body.systemInstruction = { parts: [{ text: fullSysp }] };
@@ -6450,7 +6481,7 @@ return await createBackendApprovalRequest({
             function newConversation() {
                 // Prevent creating multiple empty conversations
                 if (activeId && conversationMessages(convs[activeId]).length === 0) {
-                    toast('💬 Já existe uma conversa vazia. Comece a digitar!');
+                    toast('ðŸ’¬ JÃ¡ existe uma conversa vazia. Comece a digitar!');
                     document.getElementById('msg').focus();
                     closeSidebar();
                     return;
@@ -6474,7 +6505,7 @@ return await createBackendApprovalRequest({
                 renderSidebar(); renderChat();
             }
             function clearAll() {
-                if (!confirm('Tem certeza que deseja apagar todas as conversas? Esta ação não pode ser desfeita.')) return;
+                if (!confirm('Tem certeza que deseja apagar todas as conversas? Esta aÃ§Ã£o nÃ£o pode ser desfeita.')) return;
                 convs = {}; activeId = null; saveConvs(); renderSidebar(); renderChat();
             }
             const uiRenderRuntime = window.SkillFlowUiRender.init({
@@ -6518,12 +6549,12 @@ return await createBackendApprovalRequest({
 
             function renderSidebar() { return uiRenderRuntime.renderSidebar(); }
 
-            // ─ RENDER CHAT (lazy rendering — Estratégia A) ─
+            // â”€ RENDER CHAT (lazy rendering â€” EstratÃ©gia A) â”€
             const CHAT_PAGE_SIZE = 25;
             let chatRenderedFrom = 0;     // index of the oldest rendered message
             let chatRenderedCount = 0;     // how many messages are currently rendered
             let chatScrollObserver = null; // IntersectionObserver for loading older msgs
-            const msgHTMLCache = new Map(); // key: convId+msgIndex+msgTs → HTML string
+            const msgHTMLCache = new Map(); // key: convId+msgIndex+msgTs â†’ HTML string
 
             function msgCacheKey(convId, idx, msg) { return uiRenderRuntime.msgCacheKey(convId, idx, msg); }
 
@@ -6537,7 +6568,7 @@ return await createBackendApprovalRequest({
 
             function cleanupChatObserver() { return uiRenderRuntime.cleanupChatObserver(); }
 
-            // ─ FILE HANDLING ─
+            // â”€ FILE HANDLING â”€
             let pendingFiles = []; // non-image files
             function handleFiles(e) {
                 const files = e.target.files;
@@ -6545,7 +6576,7 @@ return await createBackendApprovalRequest({
 
                 for (let file of files) {
                     if (file.size > 20 * 1024 * 1024) {
-                        toast(`⚠ ${file.name} é maior que 20MB.`);
+                        toast(`âš  ${file.name} Ã© maior que 20MB.`);
                         continue;
                     }
                     const isImage = file.type.startsWith('image/');
@@ -6580,20 +6611,20 @@ return await createBackendApprovalRequest({
 
             function copyMsg(i) { return uiRenderRuntime.copyMsg(i); }
 
-            // ─ EDIT MESSAGE ─
+            // â”€ EDIT MESSAGE â”€
             function editMsg(i) { return uiRenderRuntime.editMsg(i); }
 
             function saveEdit(i) { return uiRenderRuntime.saveEdit(i); }
 
             function cancelEdit(i) { return uiRenderRuntime.cancelEdit(i); }
 
-            // ─ REGENERATE ─
+            // â”€ REGENERATE â”€
             function regenerateMsg(i) { return uiRenderRuntime.regenerateMsg(i); }
 
-            // ─ DELETE MESSAGE ─
+            // â”€ DELETE MESSAGE â”€
             function deleteMsg(i) { return uiRenderRuntime.deleteMsg(i); }
 
-            // ─ UTILS ─
+            // â”€ UTILS â”€
             function esc(s) {
                 return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             }
@@ -6612,7 +6643,7 @@ return await createBackendApprovalRequest({
             function toast(msg) { return uiRenderRuntime.toast(msg); }
             function autoH(el) { return uiRenderRuntime.autoH(el); }
 
-            // ─ SEND ─
+            // â”€ SEND â”€
             async function send() {
                 if (!activeId) newConversation();
                 const conversationId = activeId;
@@ -6622,7 +6653,7 @@ return await createBackendApprovalRequest({
 
                 const model = document.getElementById('model-sel').value;
 
-                // ═══ Live model: text must go via WebSocket (no REST support) ═══
+                // â•â•â• Live model: text must go via WebSocket (no REST support) â•â•â•
                 if (isLiveModel(model)) {
                     await chatRuntime.handleLiveSend({
                         conversationId,
@@ -6666,7 +6697,7 @@ return await createBackendApprovalRequest({
 
             function stop() { return chatRuntime.stop(); }
 
-            // ─ EVENTOS ─
+            // â”€ EVENTOS â”€
             document.getElementById('msg').addEventListener('keydown', e => {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
             });
@@ -6681,7 +6712,7 @@ return await createBackendApprovalRequest({
                 updateScrollBottomButton();
             });
 
-            // ─ PASTE IMAGE (Ctrl+V) ─
+            // â”€ PASTE IMAGE (Ctrl+V) â”€
             document.addEventListener('paste', e => {
                 const items = e.clipboardData?.items;
                 if (!items) return;
@@ -6691,13 +6722,13 @@ return await createBackendApprovalRequest({
                         foundImage = true;
                         const file = item.getAsFile();
                         if (!file) continue;
-                        if (file.size > 5 * 1024 * 1024) { toast('⚠ Imagem maior que 5MB.'); continue; }
+                        if (file.size > 5 * 1024 * 1024) { toast('âš  Imagem maior que 5MB.'); continue; }
                         const reader = new FileReader();
                         reader.onload = evt => {
                             const base64 = evt.target.result.split(',')[1];
                             pendingImages.push({ name: file.name || 'imagem-colada.png', mimeType: file.type, data: base64, url: evt.target.result });
                             renderImagePreview();
-                            toast('📋 Imagem colada!');
+                            toast('ðŸ“‹ Imagem colada!');
                             document.getElementById('msg').focus();
                         };
                         reader.readAsDataURL(file);
@@ -6707,13 +6738,13 @@ return await createBackendApprovalRequest({
                 if (foundImage) e.preventDefault();
             });
 
-            // ─ INIT ─
+            // â”€ INIT â”€
             function checkSTTCapability() {
                 const hasSpeechAPI = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
                 const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
                 const issues = [];
-                if (!hasSpeechAPI) issues.push('Browser não suporta STT (use Chrome/Edge)');
-                if (!isSecure) issues.push('HTTPS necessário para microfone');
+                if (!hasSpeechAPI) issues.push('Browser nÃ£o suporta STT (use Chrome/Edge)');
+                if (!isSecure) issues.push('HTTPS necessÃ¡rio para microfone');
 
                 if (issues.length) {
                     // Disable mic and live buttons visually
@@ -6721,7 +6752,7 @@ return await createBackendApprovalRequest({
                     const liveBtn = document.getElementById('live-btn');
                     if (micBtn) { micBtn.style.opacity = '0.4'; micBtn.title = issues.join(', '); }
                     if (liveBtn) { liveBtn.style.opacity = '0.4'; liveBtn.title = issues.join(', '); }
-                    console.warn('[SkillFlow] STT indisponível:', issues.join('; '));
+                    console.warn('[SkillFlow] STT indisponÃ­vel:', issues.join('; '));
                 }
                 return issues;
             }
@@ -6767,9 +6798,9 @@ return await createBackendApprovalRequest({
 
             initApp();
 
-            // ─══════════════════════════════════════════════════
-            // SPEECH TO TEXT — Web Speech API (PT-BR, tempo real)
-            // ─══════════════════════════════════════════════════
+            // â”€â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+            // SPEECH TO TEXT â€” Web Speech API (PT-BR, tempo real)
+            // â”€â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             let recognition = null;
             let isListening = false;
             let speechBase = '';
@@ -6808,7 +6839,7 @@ return await createBackendApprovalRequest({
                         const status = await navigator.permissions.query({ name: 'microphone' });
                         if (status.state === 'denied') {
                             setMicPermissionState('denied');
-                            toast('⚠ Microfone bloqueado no navegador.');
+                            toast('âš  Microfone bloqueado no navegador.');
                             return false;
                         }
                         if (status.state === 'granted') {
@@ -6818,7 +6849,7 @@ return await createBackendApprovalRequest({
                 } catch (_) { }
 
                 if (!navigator.mediaDevices?.getUserMedia) {
-                    toast('⚠ Seu navegador não suporta captura de áudio. Use Chrome ou Edge em HTTPS.');
+                    toast('âš  Seu navegador nÃ£o suporta captura de Ã¡udio. Use Chrome ou Edge em HTTPS.');
                     return false;
                 }
 
@@ -6837,9 +6868,9 @@ return await createBackendApprovalRequest({
                 } catch (e) {
                     if (e?.name === 'NotAllowedError' || e?.name === 'SecurityError') {
                         setMicPermissionState('denied');
-                        toast('⚠ Permissao de microfone negada.');
+                        toast('âš  Permissao de microfone negada.');
                     } else {
-                        toast('⚠ Nao foi possivel preparar o microfone: ' + e.message);
+                        toast('âš  Nao foi possivel preparar o microfone: ' + e.message);
                     }
                     return false;
                 }
@@ -6892,22 +6923,22 @@ return await createBackendApprovalRequest({
                 recognition.onerror = (e) => {
                     if (e.error === 'not-allowed') {
                         setMicPermissionState('denied');
-                        toast('⚠ Permissao de microfone negada.');
+                        toast('âš  Permissao de microfone negada.');
                         stopSpeech();
                         return;
                     }
                     if (e.error === 'audio-capture') {
-                        toast('⚠ Nenhum microfone disponivel.');
+                        toast('âš  Nenhum microfone disponivel.');
                         stopSpeech();
                         return;
                     }
                     if (e.error === 'network') {
-                        toast('⚠ Erro de rede no reconhecimento de voz. Verifique sua conexão.');
+                        toast('âš  Erro de rede no reconhecimento de voz. Verifique sua conexÃ£o.');
                         stopSpeech();
                         return;
                     }
                     if (e.error === 'service-not-allowed') {
-                        toast('⚠ Serviço de voz indisponível. HTTPS é necessário.');
+                        toast('âš  ServiÃ§o de voz indisponÃ­vel. HTTPS Ã© necessÃ¡rio.');
                         stopSpeech();
                         return;
                     }
@@ -6917,8 +6948,8 @@ return await createBackendApprovalRequest({
                     }
                     if (e.error === 'aborted') return; // Ignore user-initiated abort
                     // Catch-all for unknown errors
-                    console.warn('[STT] Erro não tratado:', e.error, e);
-                    toast('⚠ Erro no reconhecimento de voz: ' + (e.error || 'desconhecido'));
+                    console.warn('[STT] Erro nÃ£o tratado:', e.error, e);
+                    toast('âš  Erro no reconhecimento de voz: ' + (e.error || 'desconhecido'));
                     stopSpeech();
                 };
 
@@ -6948,7 +6979,7 @@ return await createBackendApprovalRequest({
                             }
                             const stale = !speechLastResultAt || (Date.now() - speechLastResultAt > 12000);
                             if (speechNoSpeechCount >= 2 && stale) {
-                                toast('⚠ O microfone iniciou, mas o navegador não detectou fala. Verifique o dispositivo de entrada.');
+                                toast('âš  O microfone iniciou, mas o navegador nÃ£o detectou fala. Verifique o dispositivo de entrada.');
                             }
                             stopSpeech();
                         }
@@ -6960,7 +6991,7 @@ return await createBackendApprovalRequest({
 
             async function toggleSpeech() {
                 if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
-                    toast('⚠ Seu browser não suporta STT. Use Chrome ou Edge.');
+                    toast('âš  Seu browser nÃ£o suporta STT. Use Chrome ou Edge.');
                     return;
                 }
                 if (liveMode && liveState === 'playing') {
@@ -6986,7 +7017,7 @@ return await createBackendApprovalRequest({
                 try {
                     stt.start();
                 } catch (e) {
-                    toast('⚠ Nao foi possivel iniciar o microfone: ' + e.message);
+                    toast('âš  Nao foi possivel iniciar o microfone: ' + e.message);
                 }
             }
 
@@ -7015,9 +7046,9 @@ return await createBackendApprovalRequest({
                 });
             });
 
-            // ─══════════════════════════════════════════════════════════════
-            // LIVE MODE — Conversa de voz contínua (dual engine)
-            // ─══════════════════════════════════════════════════════════════
+            // â”€â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+            // LIVE MODE â€” Conversa de voz contÃ­nua (dual engine)
+            // â”€â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             let liveMode = false;
             let liveState = 'idle';
             let liveSilenceTimer = null;
@@ -7084,20 +7115,20 @@ return await createBackendApprovalRequest({
             });
             const geminiLive = liveRuntime.createGeminiLive();
 
-            // ─ HUD helper ─
+            // â”€ HUD helper â”€
             function liveSetHUD(state, label) { return liveRuntime.liveSetHUD(state, label); }
 
             async function startLiveForCurrentModel(options = {}) { return liveRuntime.startLiveForCurrentModel(options); }
 
-            // ─ Toggle ─
+            // â”€ Toggle â”€
             async function toggleLive() { return liveRuntime.toggleLive(); }
 
             async function toggleLiveScreenShare() { return liveRuntime.toggleLiveScreenShare(); }
 
-            // ─ Init: 1 único recognition ─
+            // â”€ Init: 1 Ãºnico recognition â”€
             function liveInit() {
                 const SpeechAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-                if (!SpeechAPI) { toast('⚠ Chrome/Edge necessário.'); return; }
+                if (!SpeechAPI) { toast('âš  Chrome/Edge necessÃ¡rio.'); return; }
 
                 stopSpeech();
                 // Limpar recognition anterior antes de criar novo
@@ -7147,7 +7178,7 @@ return await createBackendApprovalRequest({
                         liveLastDisplay = display;
                         clearTimeout(liveSilenceTimer);
                         liveSilenceStart = Date.now();
-                        liveSetHUD('listening', '🎙 Ouvindo…');
+                        liveSetHUD('listening', 'ðŸŽ™ Ouvindoâ€¦');
                         liveSilenceTimer = setTimeout(() => {
                             if (liveMode && !liveIgnoreSTT && document.getElementById('msg')?.value?.trim()) {
                                 liveAccum = '';
@@ -7159,14 +7190,14 @@ return await createBackendApprovalRequest({
                 };
 
                 r.onerror = (e) => {
-                    if (e.error === 'not-allowed') { toast('⚠ Mic negado.'); liveStop(); return; }
-                    if (e.error === 'audio-capture') { toast('⚠ Nenhum microfone disponível.'); liveStop(); return; }
-                    if (e.error === 'network') { toast('⚠ Erro de rede no Live Mode.'); liveStop(); return; }
-                    if (e.error === 'service-not-allowed') { toast('⚠ Serviço de voz indisponível (HTTPS requerido).'); liveStop(); return; }
+                    if (e.error === 'not-allowed') { toast('âš  Mic negado.'); liveStop(); return; }
+                    if (e.error === 'audio-capture') { toast('âš  Nenhum microfone disponÃ­vel.'); liveStop(); return; }
+                    if (e.error === 'network') { toast('âš  Erro de rede no Live Mode.'); liveStop(); return; }
+                    if (e.error === 'service-not-allowed') { toast('âš  ServiÃ§o de voz indisponÃ­vel (HTTPS requerido).'); liveStop(); return; }
                     if (e.error === 'aborted') return;
-                    if (e.error === 'no-speech') { liveNoSpeechCount += 1; return; } // Silêncio — onend vai reiniciar automaticamente
+                    if (e.error === 'no-speech') { liveNoSpeechCount += 1; return; } // SilÃªncio â€” onend vai reiniciar automaticamente
                     console.warn('[Live STT] Erro:', e.error);
-                    toast('⚠ Erro no Live Mode: ' + (e.error || 'desconhecido'));
+                    toast('âš  Erro no Live Mode: ' + (e.error || 'desconhecido'));
                 };
 
                 r.onend = () => {
@@ -7183,7 +7214,7 @@ return await createBackendApprovalRequest({
                                 if (liveRestartAttempts >= 4) {
                                     const stale = !liveLastResultAt || (Date.now() - liveLastResultAt > 12000);
                                     if (liveNoSpeechCount >= 2 && stale) {
-                                        toast('⚠ O navegador não detectou fala no Live Mode. Verifique o microfone ativo.');
+                                        toast('âš  O navegador nÃ£o detectou fala no Live Mode. Verifique o microfone ativo.');
                                     }
                                     liveSetHUD('idle', 'Microfone pausado');
                                     liveStop();
@@ -7201,29 +7232,29 @@ return await createBackendApprovalRequest({
                     speechBase = '';
                     const msgEl = document.getElementById('msg');
                     if (msgEl && !liveAccum) msgEl.value = '';
-                    liveSetHUD('listening', '🎙 Ouvindo…');
+                    liveSetHUD('listening', 'ðŸŽ™ Ouvindoâ€¦');
                 };
 
-                try { r.start(); } catch (e) { toast('⚠ Mic: ' + e.message); liveStop(); }
+                try { r.start(); } catch (e) { toast('âš  Mic: ' + e.message); liveStop(); }
             }
 
-            // ─ Pause STT during processing/TTS ─
+            // â”€ Pause STT during processing/TTS â”€
             function livePauseSTT() { return liveRuntime.livePauseSTT(); }
 
-            // ─ Trigger send ─
+            // â”€ Trigger send â”€
             async function liveTriggerSend() { return liveRuntime.liveTriggerSend(); }
 
-            // ─ Fala e aguarda fim ─
+            // â”€ Fala e aguarda fim â”€
             async function liveSpeak(msgIdx) { return liveRuntime.liveSpeak(msgIdx); }
 
             function liveResumeListening() { return liveRuntime.liveResumeListening(); }
 
-            // ─ Para tudo ─
+            // â”€ Para tudo â”€
             function liveStop(options = {}) { return liveRuntime.liveStop(options); }
 
-            // ─══════════════════════════════════════════════════════════════
-            // DRAG & DROP — Images and files
-            // ─══════════════════════════════════════════════════════════════
+            // â”€â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+            // DRAG & DROP â€” Images and files
+            // â”€â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             let dragCounter = 0;
             document.addEventListener('dragenter', e => {
                 e.preventDefault();
@@ -7246,7 +7277,7 @@ return await createBackendApprovalRequest({
                 const files = e.dataTransfer?.files;
                 if (!files?.length) return;
                 for (const file of files) {
-                    if (file.size > 20 * 1024 * 1024) { toast(`⚠ ${file.name} > 20MB`); continue; }
+                    if (file.size > 20 * 1024 * 1024) { toast(`âš  ${file.name} > 20MB`); continue; }
                     const isImage = file.type.startsWith('image/');
                     const reader = new FileReader();
                     reader.onload = evt => {
@@ -7257,26 +7288,26 @@ return await createBackendApprovalRequest({
                             pendingFiles.push({ mimeType: file.type, data: base64, name: file.name, url: evt.target.result });
                         }
                         renderImagePreview();
-                        toast(`📁 ${file.name} adicionado!`);
+                        toast(`ðŸ“ ${file.name} adicionado!`);
                     };
                     reader.readAsDataURL(file);
                 }
                 document.getElementById('msg')?.focus();
             });
 
-            // ─══════════════════════════════════════════════════════════════
+            // â”€â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             // KEYBOARD SHORTCUTS
-            // ─══════════════════════════════════════════════════════════════
+            // â”€â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             document.addEventListener('keydown', e => {
-                // Ctrl+N — new conversation
+                // Ctrl+N â€” new conversation
                 if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
                     e.preventDefault(); newConversation();
                 }
-                // Ctrl+. — stop generation
+                // Ctrl+. â€” stop generation
                 if ((e.ctrlKey || e.metaKey) && e.key === '.') {
                     e.preventDefault(); stop();
                 }
-                // Ctrl+K — focus search
+                // Ctrl+K â€” focus search
                 if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
                     e.preventDefault();
                     const sb = document.getElementById('sidebar');
@@ -7284,20 +7315,20 @@ return await createBackendApprovalRequest({
                     if (window.innerWidth <= 768 && !sb.classList.contains('open')) openSidebar();
                     document.getElementById('search-box')?.focus();
                 }
-                // Ctrl+/ — show shortcuts
+                // Ctrl+/ â€” show shortcuts
                 if ((e.ctrlKey || e.metaKey) && e.key === '/') {
                     e.preventDefault();
                     document.getElementById('shortcuts-modal')?.classList.toggle('show');
                 }
-                // Escape — close modals
+                // Escape â€” close modals
                 if (e.key === 'Escape') {
                     document.getElementById('shortcuts-modal')?.classList.remove('show');
                 }
             });
 
-            // ─══════════════════════════════════════════════════════════════
-            // RENAME CONVERSATIONS — Double click
-            // ─══════════════════════════════════════════════════════════════
+            // â”€â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+            // RENAME CONVERSATIONS â€” Double click
+            // â”€â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             function renameConv(id) {
                 const ci = document.querySelector(`.ci[data-cid="${id}"] .ci-title`);
                 if (!ci) return;
@@ -7317,9 +7348,9 @@ return await createBackendApprovalRequest({
                 renderSidebar();
             }
 
-            // ─══════════════════════════════════════════════════════════════
+            // â”€â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             // OFFLINE/ONLINE INDICATOR
-            // ─══════════════════════════════════════════════════════════════
+            // â”€â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             function updateOnlineStatus() {
                 document.getElementById('offline-banner')?.classList.toggle('show', !navigator.onLine);
             }

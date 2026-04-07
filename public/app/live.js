@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
     function init(deps) {
         let geminiLive = null;
 
@@ -135,7 +135,7 @@
                                 reject(error);
                             }
                             this.disconnect();
-                            deps.toast('Erro na conexao Live');
+                            deps.toast('Erro na conexão Live');
                         };
 
                         ws.onclose = (event) => {
@@ -145,7 +145,7 @@
                                 deps.setLiveMode(false);
                                 liveSetHUD('idle', '');
                                 global.document.getElementById('live-btn')?.classList.remove('on');
-                                deps.toast('Sessao Live encerrada');
+                                deps.toast('Sessão Live encerrada');
                             }
                             if (!settled) {
                                 settled = true;
@@ -342,7 +342,7 @@
                     }
 
                     if (rejectedImages.length) deps.toast('No Gemini 3.1 Live, envie imagens JPG ou PNG.');
-                    if (files?.length) deps.toast('Arquivos anexados fora de imagem nao sao suportados no Gemini 3.1 Live.');
+                    if (files?.length) deps.toast('Arquivos anexados fora de imagem não são suportados no Gemini 3.1 Live.');
                     if (!text && !supportedImages.length) return;
                     liveSetHUD('processing', 'Processando...');
                 },
@@ -788,7 +788,7 @@
                     deps.setLiveMode(false);
                     global.document.getElementById('live-btn')?.classList.remove('on');
                     console.error('[GeminiLive] Connect failed:', error);
-                    if (!options.silent) deps.toast('Falha ao conectar: ' + (error.message || 'erro desconhecido'));
+                    if (!options.silent) deps.toast('Falha ao conectar: ' + (error.message || 'erro desconhecido')); 
                     return false;
                 }
             }
@@ -799,12 +799,12 @@
             }
             const isSecure = global.location.protocol === 'https:' || global.location.hostname === 'localhost' || global.location.hostname === '127.0.0.1';
             if (!isSecure) {
-                if (!options.silent) deps.toast('Live Mode requer HTTPS. Mic nao funciona em HTTP.');
+                if (!options.silent) deps.toast('Live Mode requer HTTPS. Mic não funciona em HTTP.');
                 return false;
             }
             const voice = global.document.getElementById('tts-voice-sel')?.value;
             if (!voice) {
-                if (!options.silent) deps.toast('Selecione uma voz em Configuracoes > TTS antes de ativar o Live Mode.');
+                if (!options.silent) deps.toast('Selecione uma voz em Configurações > TTS antes de ativar o Live Mode.');
                 return false;
             }
             if (!await deps.ensureMicPermission()) return false;
@@ -826,7 +826,7 @@
         async function toggleLiveScreenShare() {
             const model = global.document.getElementById('model-sel')?.value || '';
             if (!deps.isLiveModel(model)) {
-                deps.toast('Compartilhamento de tela esta disponivel so no Gemini Live 3.1.');
+                deps.toast('Compartilhamento de tela está disponível só no Gemini Live 3.1.');
                 return;
             }
             if (!getGeminiLive()?.active) {
@@ -841,7 +841,7 @@
                 await getGeminiLive().startScreenShare(5000);
             } catch (error) {
                 console.error('[GeminiLive] Screen share error:', error);
-                deps.toast('Falha ao compartilhar a tela: ' + (error.message || 'erro desconhecido'));
+                deps.toast('Falha ao compartilhar a tela: ' + (error.message || 'erro desconhecido')); 
                 getGeminiLive().stopScreenShare({ silent: true });
             }
         }
@@ -966,3 +966,4 @@
 
     global.SkillFlowLive = { init };
 })(window);
+
