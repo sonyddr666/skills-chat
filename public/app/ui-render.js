@@ -1,5 +1,17 @@
 (function (global) {
     function init(deps) {
+        function fileBadgeLabel(file) {
+            const mimeType = String(file?.mimeType || file?.type || '').toLowerCase();
+            const name = String(file?.name || file?.path || '').toLowerCase();
+            if (mimeType.startsWith('image/')) return 'IMG';
+            if (mimeType.includes('pdf') || name.endsWith('.pdf')) return 'PDF';
+            if (mimeType.includes('json') || name.endsWith('.json')) return 'JSON';
+            if (mimeType.includes('zip') || mimeType.includes('gzip') || /\.(zip|gz|tgz|7z|rar)$/.test(name)) return 'ZIP';
+            if (mimeType.includes('audio') || /\.(mp3|wav|ogg|m4a)$/.test(name)) return 'AUDIO';
+            if (mimeType.includes('video') || /\.(mp4|mov|webm|mkv)$/.test(name)) return 'VIDEO';
+            return 'FILE';
+        }
+
         function renderSidebar() {
             const list = global.document.getElementById('conv-list');
             const q = global.document.getElementById('search-box').value.toLowerCase();
@@ -47,7 +59,7 @@
   `).join('');
             html += pendingFiles.map((file, i) => `
     <div class="file-preview">
-      <span class="file-icon">${String(file?.mimeType || '').toLowerCase() === 'application/pdf' ? 'PDF' : 'Arquivo'}</span>
+      <span class="file-icon">${fileBadgeLabel(file)}</span>
       <span>${deps.esc(file?.name || 'arquivo')}</span>
       <button class="rm-btn" onclick="removeFile(${i})">x</button>
     </div>
@@ -195,7 +207,7 @@
                 : '';
 
             return `<div class="file-preview">
-      <span class="file-icon">${deps.fileIconForMessage(file)}</span>
+      <span class="file-icon">${fileBadgeLabel(file)}</span>
       <span style="display:flex;flex-direction:column;min-width:0;flex:1">
         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${deps.esc(file?.name || 'arquivo')}</span>
         ${subtitle}
@@ -232,7 +244,7 @@
                         : (img?.downloadUrl || (img?.path ? '/api/fs/download?path=' + encodeURIComponent(img.path) : ''));
                     return src
                         ? `<img src="${src}">`
-                        : `<div class="file-preview"><span class="file-icon">🖼️</span><span>${deps.esc(img?.name || 'Imagem anexada')}</span></div>`;
+                        : `<div class="file-preview"><span class="file-icon">IMG</span><span>${deps.esc(img?.name || 'Imagem anexada')}</span></div>`;
                 }).join('')}</div>`;
             }
 
@@ -251,16 +263,16 @@
             if (role === 'user') {
                 return `
                     <div class="msg-actions">
-                        <button class="msg-act-btn" onclick="editMsg(${messageIndex})" title="Editar">✏ Editar</button>
-                        <button class="msg-act-btn danger" onclick="deleteMsg(${messageIndex})" title="Deletar">🗑</button>
+                        <button class="msg-act-btn" onclick="editMsg(${messageIndex})" title="Editar">Editar</button>
+                        <button class="msg-act-btn danger" onclick="deleteMsg(${messageIndex})" title="Excluir">Excluir</button>
                     </div>`;
             }
 
             if (role === 'model') {
                 return `
                     <div class="msg-actions">
-                        <button class="msg-act-btn" onclick="regenerateMsg(${messageIndex})" title="Regenerar resposta">🔄 Regenerar</button>
-                        <button class="msg-act-btn danger" onclick="deleteMsg(${messageIndex})" title="Deletar">🗑</button>
+                        <button class="msg-act-btn" onclick="regenerateMsg(${messageIndex})" title="Regenerar resposta">Regenerar</button>
+                        <button class="msg-act-btn danger" onclick="deleteMsg(${messageIndex})" title="Excluir">Excluir</button>
                     </div>`;
             }
 
@@ -274,14 +286,14 @@
         ${message.think ? `<span class="tbadge">thinking:${message.think}</span>` : ''}
         ${message.live ? `<span style="background:#ff4757;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700">LIVE</span>` : ''}
         ${message.tok ? `<span>${message.tok.toLocaleString()} tok</span>` : ''}
-        <button class="cp" onclick="copyMsg(${messageIndex})">⎘ Copiar Tudo</button>
-        ${message.role === 'model' ? `<button class="tts-btn" onclick="ttsSpeakMsg(${messageIndex})" id="tts-btn-${messageIndex}" title="Ouvir resposta">🔊</button>` : ''}
+        <button class="cp" onclick="copyMsg(${messageIndex})">Copiar Tudo</button>
+        ${message.role === 'model' ? `<button class="tts-btn" onclick="ttsSpeakMsg(${messageIndex})" id="tts-btn-${messageIndex}" title="Ouvir resposta">Ouvir</button>` : ''}
       </div>`;
         }
 
         function renderMessageShell(message, messageIndex, bodyHtml, metaHtml, actionsHtml) {
             return `<div class="row ${message.role} animate-in">
-    <div class="av">${message.role === 'user' ? '👤' : '✦'}</div>
+    <div class="av">${message.role === 'user' ? 'EU' : 'AI'}</div>
     <div style="flex:1; max-width: calc(100% - 42px);">
       <div class="bub" id="bub${messageIndex}">${bodyHtml}</div>
       ${metaHtml}
@@ -345,7 +357,7 @@
             const batchHtml = batchMsgs.map((msg, i) => cachedMsgHTML(activeId, msg, newFrom + i)).join('');
             const hasOlder = newFrom > 0;
             const sentinel = hasOlder
-                ? `<div id="chat-load-more" style="text-align:center;padding:12px;color:var(--muted);font-size:12px;cursor:pointer" onclick="loadOlderMessages()">⬑ Carregar mensagens anteriores (${newFrom} restantes)</div>`
+                ? `<div id="chat-load-more" style="text-align:center;padding:12px;color:var(--muted);font-size:12px;cursor:pointer" onclick="loadOlderMessages()">Carregar mensagens anteriores (${newFrom} restantes)</div>`
                 : '';
 
             const oldSentinel = global.document.getElementById('chat-load-more');
@@ -382,7 +394,7 @@
 
         function renderEmptyChat() {
             return `<div id="empty">
-      <div class="logo">✦</div>
+      <div class="logo">AI</div>
       <h3>SkillFlow Chat OS</h3>
       <p>Chat real com LLM, STT, TTS, skills, plugins e function calling. Configure a API Key, escolha o modelo e trabalhe por conversa, projeto ou skill pack.</p>
       <div class="empty-features">
@@ -401,7 +413,7 @@
             const html = slice.map((msg, i) => cachedMsgHTML(activeId, msg, from + i)).join('');
             const hasOlder = from > 0;
             const sentinel = hasOlder
-                ? `<div id="chat-load-more" style="text-align:center;padding:12px;color:var(--muted);font-size:12px;cursor:pointer" onclick="loadOlderMessages()">⬑ Carregar mensagens anteriores (${from} restantes)</div>`
+                ? `<div id="chat-load-more" style="text-align:center;padding:12px;color:var(--muted);font-size:12px;cursor:pointer" onclick="loadOlderMessages()">Carregar mensagens anteriores (${from} restantes)</div>`
                 : '';
 
             return {
@@ -471,7 +483,7 @@
             const activeId = deps.getActiveId();
             const conversations = deps.getConversations();
             return global.navigator.clipboard.writeText(conversations[activeId].msgs[messageIndex].text)
-                .then(() => toast('✓ Mensagem copiada!'));
+                .then(() => toast('Mensagem copiada.'));
         }
 
         function editMsg(messageIndex) {
@@ -483,7 +495,7 @@
             if (!bubble) return;
             bubble.innerHTML = `<textarea class="edit-textarea" id="edit-ta-${messageIndex}">${deps.esc(message.text || '')}</textarea>
                 <div class="edit-actions">
-                    <button class="edit-save-btn" onclick="saveEdit(${messageIndex})">💾 Salvar e Reenviar</button>
+                    <button class="edit-save-btn" onclick="saveEdit(${messageIndex})">Salvar e Reenviar</button>
                     <button class="edit-cancel-btn" onclick="cancelEdit(${messageIndex})">Cancelar</button>
                 </div>`;
             global.document.getElementById('edit-ta-' + messageIndex)?.focus();
@@ -494,7 +506,7 @@
             if (!textarea) return;
             const newText = textarea.value.trim();
             if (!newText) {
-                toast('⚠ Mensagem vazia.');
+                toast('Mensagem vazia.');
                 return;
             }
 
