@@ -2057,6 +2057,10 @@
             justify-content: center;
         }
 
+        #stop-btn {
+            display: none;
+        }
+
         /* â”€ LIVE MODE â”€ */
         #live-btn {
             background: none;
@@ -5410,8 +5414,15 @@ return await createBackendApprovalRequest({
 
             function refreshGenerationUi() {
                 const hasActive = generationControllers.size > 0;
-                document.getElementById('send-btn').disabled = false;
-                document.getElementById('stop-btn').style.display = hasActive ? 'flex' : 'none';
+                const sendBtn = document.getElementById('send-btn');
+                const stopBtn = document.getElementById('stop-btn');
+                if (sendBtn) {
+                    sendBtn.disabled = hasActive;
+                    sendBtn.style.display = hasActive ? 'none' : 'inline-flex';
+                }
+                if (stopBtn) {
+                    stopBtn.style.display = hasActive ? 'inline-flex' : 'none';
+                }
             }
 
             function renderSystemPromptPresetOptions(selectedId = '') {
