@@ -5348,6 +5348,15 @@ return await createBackendApprovalRequest({
             let generationSeq = 0;
             let pendingImages = [];
             let systemPromptPresets = [];
+            const ttsRuntime = window.SkillFlowTts.init({
+                storage: storageSync,
+                toast,
+                esc,
+                getConversations: () => convs,
+                getActiveId: () => activeId
+            });
+            const ttsSpeakMsg = (...args) => ttsRuntime.ttsSpeakMsg(...args);
+            const ttsStop = (...args) => ttsRuntime.ttsStop(...args);
             const chatRuntime = window.SkillFlowChat.init({
                 generationControllers,
                 autoH,
@@ -5399,13 +5408,6 @@ return await createBackendApprovalRequest({
                 ttsSpeakMsg,
                 nextGenerationSeq: () => ++generationSeq,
                 refreshGenerationUi
-            });
-            const ttsRuntime = window.SkillFlowTts.init({
-                storage: storageSync,
-                toast,
-                esc,
-                getConversations: () => convs,
-                getActiveId: () => activeId
             });
 
             function refreshGenerationUi() {
