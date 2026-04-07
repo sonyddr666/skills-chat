@@ -5418,7 +5418,7 @@ return await createBackendApprovalRequest({
                 const sel = document.getElementById('sysp-preset-sel');
                 if (!sel) return;
                 const wanted = String(selectedId || '');
-                sel.innerHTML = '<option value="">Carregando vozes...</option>' +
+                sel.innerHTML = '<option value="">Carregando presets...</option>' +
                     systemPromptPresets.map(item => {
                         const key = item.storage_key || `${item.scope || 'private'}:${item.id}`;
                         const scopeLabel = item.scope === 'shared' ? '[Compartilhado]' : '[Privado]';

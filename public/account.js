@@ -199,8 +199,16 @@
         const remote = remoteState && typeof remoteState === 'object' ? remoteState : {};
         const merged = { ...remote, ...local };
 
-        if (Object.prototype.hasOwnProperty.call(local, 'gc_convs') || Object.prototype.hasOwnProperty.call(remote, 'gc_convs')) {
-            merged.gc_convs = mergeConversationMaps(local.gc_convs, remote.gc_convs);
+        if (Object.prototype.hasOwnProperty.call(remote, 'gc_convs')) {
+            merged.gc_convs = remote.gc_convs;
+        } else if (Object.prototype.hasOwnProperty.call(local, 'gc_convs')) {
+            merged.gc_convs = local.gc_convs;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(remote, 'gc_activeId')) {
+            merged.gc_activeId = remote.gc_activeId;
+        } else if (Object.prototype.hasOwnProperty.call(local, 'gc_activeId')) {
+            merged.gc_activeId = local.gc_activeId;
         }
 
         return merged;

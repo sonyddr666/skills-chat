@@ -2,13 +2,12 @@ export function createGeminiModule({
   fetch,
   Buffer,
   geminiApiBaseUrl,
-  processEnvGeminiApiKey,
   createWriteStream,
   writeFile,
   mkdir
 }) {
   function getGeminiApiKey(payload) {
-    return String(processEnvGeminiApiKey || payload.api_key || "").trim();
+    return String(payload.api_key || "").trim();
   }
 
   function assertGeminiPayload(payload) {
@@ -27,7 +26,7 @@ export function createGeminiModule({
 
     const apiKey = getGeminiApiKey(payload);
     if (!apiKey) {
-      const error = new Error("GEMINI_API_KEY ausente no servidor e nenhuma api_key foi enviada.");
+      const error = new Error("Credencial Gemini ausente para este usuario.");
       error.statusCode = 400;
       throw error;
     }

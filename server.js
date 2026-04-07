@@ -997,14 +997,14 @@ async function saveUserCredentials(user, nextCredentials) {
 
 function credentialStatusPayload(credentials = {}) {
   return {
-    gemini_configured: !!String(credentials.gemini_api_key || process.env.GEMINI_API_KEY || "").trim(),
+    gemini_configured: !!String(credentials.gemini_api_key || "").trim(),
     codex_configured: Boolean(credentials.codex_auth),
     tts_configured: !!(TTS_API_URL && TTS_SECRET)
   };
 }
 
 function getConfiguredGeminiApiKey(credentials = {}) {
-  return String(process.env.GEMINI_API_KEY || credentials.gemini_api_key || "").trim();
+  return String(credentials.gemini_api_key || "").trim();
 }
 
 function getConfiguredCodexAuth(credentials = {}) {
@@ -1390,7 +1390,6 @@ function normalizeConversationId(value) {
   fetch,
   Buffer,
   geminiApiBaseUrl: GEMINI_API_BASE_URL,
-  processEnvGeminiApiKey: process.env.GEMINI_API_KEY,
   createWriteStream,
   writeFile,
   mkdir
@@ -2476,9 +2475,9 @@ async function legacyProxyGeminiStream(res, payload) {
     throw error;
   }
 
-  const apiKey = String(process.env.GEMINI_API_KEY || payload.api_key || "").trim();
+  const apiKey = String(payload.api_key || "").trim();
   if (!apiKey) {
-    const error = new Error("GEMINI_API_KEY ausente no servidor e nenhuma api_key foi enviada.");
+    const error = new Error("Credencial Gemini ausente para este usuario.");
     error.statusCode = 400;
     throw error;
   }
@@ -2518,9 +2517,9 @@ async function legacyProxyGeminiStream(res, payload) {
 
 async function legacyRunGeminiChatJob(user, jobId, payload) {
   const paths = chatJobPaths(user, jobId);
-  const apiKey = String(process.env.GEMINI_API_KEY || payload.api_key || "").trim();
+  const apiKey = String(payload.api_key || "").trim();
   if (!apiKey) {
-    const error = new Error("GEMINI_API_KEY ausente no servidor e nenhuma api_key foi enviada.");
+    const error = new Error("Credencial Gemini ausente para este usuario.");
     error.statusCode = 400;
     throw error;
   }
