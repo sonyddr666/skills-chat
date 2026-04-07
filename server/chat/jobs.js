@@ -157,11 +157,12 @@ export function createChatJobsModule({
       input: payload.input,
       messages: payload.messages,
       tools: payload.tools,
+      user,
       session_id: payload.session_id || `${user.id}-skillflow`
     });
-    const contextItems = Array.isArray(payload.input) && payload.input.length
-      ? payload.input
-      : codexBuildContextMessages(payload.messages, payload.history_limit);
+    const contextItems = Array.isArray(payload.messages) && payload.messages.length
+      ? await codexBuildContextMessages(payload.messages, payload.history_limit, user)
+      : (Array.isArray(payload.input) ? payload.input : []);
     const snapshot = {
       ok: true,
       provider: "codex",

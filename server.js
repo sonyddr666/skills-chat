@@ -1376,6 +1376,10 @@ function normalizeConversationId(value) {
   fetch,
   URLSearchParams,
   Buffer,
+  readWorkspaceFile: async (user, relPath) => {
+    const target = fsWorkspacePath(user, relPath);
+    return readFile(target.absolute);
+  },
   tokenUrl: TOKEN_URL,
   codexResponsesUrl: CODEX_RESPONSES_URL,
   openAiOauthClientId: OPENAI_OAUTH_CLIENT_ID,
@@ -2574,11 +2578,12 @@ async function legacyRunCodexChatJob(user, jobId, payload) {
     input: payload.input,
     messages: payload.messages,
     tools: payload.tools,
+    user,
     session_id: payload.session_id || `${user.id}-skillflow`
   });
-  const contextItems = Array.isArray(payload.input) && payload.input.length
-    ? payload.input
-    : codexBuildContextMessages(payload.messages, payload.history_limit);
+  const contextItems = Array.isArray(payload.messages) && payload.messages.length
+    ? await codexBuildContextMessages(payload.messages, payload.history_limit, user)
+    : (Array.isArray(payload.input) ? payload.input : []);
   const snapshot = {
     ok: true,
     provider: "codex",
@@ -2697,12 +2702,13 @@ async function handleChatApi(req, res, user) {
     input: Array.isArray(normalized.input) ? normalized.input : null,
     messages: normalized.messages,
     tools: normalized.tools,
+    user,
     session_id: normalized.session_id || `${user.id}-skillflow`
   });
 
-  const contextItems = Array.isArray(normalized.input) && normalized.input.length
-    ? normalized.input
-    : codexBuildContextMessages(normalized.messages, normalized.history_limit);
+  const contextItems = Array.isArray(normalized.messages) && normalized.messages.length
+    ? await codexBuildContextMessages(normalized.messages, normalized.history_limit, user)
+    : (Array.isArray(normalized.input) ? normalized.input : []);
 
   sendJson(res, 200, {
     ok: true,

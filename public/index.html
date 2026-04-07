@@ -5976,9 +5976,17 @@ return await createBackendApprovalRequest({
                 const compacted = {};
                 for (const [id, conversation] of Object.entries(source)) {
                     if (!conversation || typeof conversation !== 'object') continue;
-                    const msgs = conversationMessages(conversation).map(message => {
+                    const recentMessages = conversationMessages(conversation).slice(-60);
+                    const preservedAttachmentMessageIndexes = new Set(
+                        recentMessages
+                            .map((message, index) => (((message?.imgs?.length || 0) || (message?.files?.length || 0)) ? index : -1))
+                            .filter((index) => index >= 0)
+                            .slice(-3)
+                    );
+                    const msgs = recentMessages.map((message, msgIndex) => {
                         if (!message || typeof message !== 'object') return message;
                         const nextMessage = { ...message };
+                        const preserveData = preservedAttachmentMessageIndexes.has(msgIndex);
 
                         if (Array.isArray(message.imgs)) {
                             nextMessage.imgs = message.imgs.filter(Boolean).map((img, index) => ({
@@ -5986,6 +5994,7 @@ return await createBackendApprovalRequest({
                                 name: img?.name || `imagem-${index + 1}`,
                                 path: img?.path || '',
                                 downloadUrl: img?.downloadUrl || '',
+                                ...(preserveData && img?.data ? { data: img.data } : {}),
                                 omitted: true
                             }));
                         }
@@ -5995,7 +6004,8 @@ return await createBackendApprovalRequest({
                                 name: file?.name || 'arquivo',
                                 mimeType: file?.mimeType || file?.type || '',
                                 path: file?.path || '',
-                                downloadUrl: file?.downloadUrl || ''
+                                downloadUrl: file?.downloadUrl || '',
+                                ...(preserveData && file?.data ? { data: file.data } : {})
                             }));
                         }
 

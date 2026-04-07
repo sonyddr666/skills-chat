@@ -2,6 +2,7 @@ export function createCodexModule({
   fetch,
   URLSearchParams,
   Buffer,
+  readWorkspaceFile,
   tokenUrl,
   codexResponsesUrl,
   openAiOauthClientId,
@@ -340,13 +341,6 @@ export function createCodexModule({
     return { role, content };
   }
 
-  function assetDataUrl(asset) {
-    const mimeType = typeof asset?.mimeType === "string" ? asset.mimeType.trim() : "";
-    const data = typeof asset?.data === "string" ? asset.data.trim() : "";
-    if (!mimeType || !data) return null;
-    return `data:${mimeType};base64,${data}`;
-  }
-
   function decodeInlineTextAsset(asset) {
     const mimeType = String(asset?.mimeType || "").trim().toLowerCase();
     const data = typeof asset?.data === "string" ? asset.data.trim() : "";
@@ -365,12 +359,68 @@ export function createCodexModule({
     }
   }
 
-  function buildCodexFileSummaryPart(file) {
+  function isTextLikeMimeType(mimeType) {
+    return mimeType.startsWith("text/")
+      || mimeType === "application/json"
+      || mimeType === "application/xml"
+      || mimeType.endsWith("+json")
+      || mimeType.endsWith("+xml");
+  }
+
+  async function loadWorkspaceAttachment(user, asset) {
+    const relPath = typeof asset?.path === "string" ? asset.path.trim() : "";
+    if (!user || !relPath || typeof readWorkspaceFile !== "function") return null;
+
+    try {
+      return await readWorkspaceFile(user, relPath);
+    } catch {
+      return null;
+    }
+  }
+
+  async function buildImageDataUrl(asset, user) {
+    const inlineUrl = assetDataUrlInline(asset);
+    if (inlineUrl) return inlineUrl;
+
+    const mimeType = typeof asset?.mimeType === "string" ? asset.mimeType.trim() : "";
+    if (!mimeType.startsWith("image/")) return null;
+
+    const buffer = await loadWorkspaceAttachment(user, asset);
+    if (!buffer || !buffer.length) return null;
+    return `data:${mimeType};base64,${buffer.toString("base64")}`;
+  }
+
+  function assetDataUrlInline(asset) {
+    const mimeType = typeof asset?.mimeType === "string" ? asset.mimeType.trim() : "";
+    const data = typeof asset?.data === "string" ? asset.data.trim() : "";
+    if (!mimeType || !data) return null;
+    return `data:${mimeType};base64,${data}`;
+  }
+
+  async function decodeTextAsset(asset, user) {
+    const mimeType = String(asset?.mimeType || "").trim().toLowerCase();
+    if (!mimeType || !isTextLikeMimeType(mimeType)) return null;
+
+    const inlineDecoded = decodeInlineTextAsset(asset);
+    if (inlineDecoded !== null) return inlineDecoded;
+
+    const buffer = await loadWorkspaceAttachment(user, asset);
+    if (!buffer || !buffer.length) return null;
+
+    try {
+      return buffer.toString("utf8");
+    } catch {
+      return null;
+    }
+  }
+
+  async function buildCodexFileSummaryPart(file, user) {
     const name = typeof file?.name === "string" && file.name.trim() ? file.name.trim() : "arquivo";
     const mimeType = typeof file?.mimeType === "string" && file.mimeType.trim()
       ? file.mimeType.trim()
       : "application/octet-stream";
-    const decoded = decodeInlineTextAsset(file);
+    const relPath = typeof file?.path === "string" && file.path.trim() ? file.path.trim() : "";
+    const decoded = await decodeTextAsset(file, user);
 
     if (decoded) {
       const trimmed = decoded.trim();
@@ -379,17 +429,17 @@ export function createCodexModule({
       const suffix = trimmed.length > limit ? "\n\n[arquivo truncado]" : "";
       return {
         type: "input_text",
-        text: `[Arquivo anexo: ${name} (${mimeType})]\n${excerpt}${suffix}`
+        text: `[Arquivo anexo: ${name} (${mimeType})${relPath ? ` path=${relPath}` : ""}]\n${excerpt}${suffix}`
       };
     }
 
     return {
       type: "input_text",
-      text: `[Arquivo anexo: ${name} (${mimeType})]`
+      text: `[Arquivo anexo: ${name} (${mimeType})${relPath ? ` path=${relPath}` : ""}]`
     };
   }
 
-  function buildCodexContextMessages(messages, historyLimit) {
+  async function buildCodexContextMessages(messages, historyLimit, user = null) {
     const normalized = [];
     const source = Array.isArray(messages) ? messages : [];
     const limit = clampCodexHistoryLimit(historyLimit);
@@ -451,7 +501,7 @@ export function createCodexModule({
 
         if (includeAttachments) {
           for (const image of images) {
-            const imageUrl = assetDataUrl(image);
+            const imageUrl = await buildImageDataUrl(image, user);
             if (!imageUrl) continue;
             content.push({
               type: "input_image",
@@ -461,7 +511,7 @@ export function createCodexModule({
           }
 
           for (const file of files) {
-            content.push(buildCodexFileSummaryPart(file));
+            content.push(await buildCodexFileSummaryPart(file, user));
           }
         } else if (images.length || files.length) {
           const labels = [];
@@ -519,9 +569,10 @@ export function createCodexModule({
   async function runCodexChat(payload) {
     const auth = await getValidCodexAuth(payload.auth);
     const model = String(payload.model || "").trim() || defaultCodexModel;
-    const contextMessages = Array.isArray(payload.input) && payload.input.length
-      ? payload.input
-      : buildCodexContextMessages(payload.messages, payload.history_limit);
+    const hasMessages = Array.isArray(payload.messages) && payload.messages.length;
+    const contextMessages = hasMessages
+      ? await buildCodexContextMessages(payload.messages, payload.history_limit, payload.user || null)
+      : (Array.isArray(payload.input) && payload.input.length ? payload.input : []);
     const userInput = contextMessages.length
       ? JSON.stringify(contextMessages.at(-1))
       : "";
