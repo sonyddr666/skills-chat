@@ -3355,7 +3355,6 @@
             }
 
             async function requestCodexChat({ model, reasoning, instructions, input, tools, signal }) {
-                const user = window.__skillflowAccount?.getUser?.();
                 return apiClient.requestCodexChat({
                     provider: 'codex',
                     model,
@@ -3363,8 +3362,7 @@
                     history_limit: CODEX_DEFAULT_HISTORY_LIMIT,
                     instructions: instructions || undefined,
                     input,
-                    tools,
-                    session_id: user?.id ? `${user.id}-skillflow` : 'skillflow'
+                    tools
                 }, signal);
             }
 

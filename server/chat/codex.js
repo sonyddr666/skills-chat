@@ -564,8 +564,7 @@ export function createCodexModule({
           include: ["reasoning.encrypted_content"],
           input: contextMessages,
           instructions,
-          ...(tools.length ? { tools } : {}),
-          ...(payload.session_id ? { session_id: payload.session_id } : {})
+          ...(tools.length ? { tools } : {})
         })
       });
     };
