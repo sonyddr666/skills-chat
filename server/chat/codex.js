@@ -439,6 +439,152 @@ export function createCodexModule({
     };
   }
 
+  function normalizeChatPath(input) {
+    return String(input || "")
+      .replace(/\\/g, "/")
+      .replace(/^\/+/, "")
+      .replace(/\/+/g, "/")
+      .trim();
+  }
+
+  function resolveArtifactPath(basePath, filePath) {
+    const base = normalizeChatPath(basePath);
+    const target = normalizeChatPath(filePath);
+    if (!target) return base;
+    const joined = `${base ? `${base}/` : ""}${target}`;
+    const out = [];
+    joined.split("/").forEach((part) => {
+      if (!part || part === ".") return;
+      if (part === "..") {
+        if (out.length) out.pop();
+        return;
+      }
+      out.push(part);
+    });
+    return out.join("/");
+  }
+
+  function normalizeArtifactItem(item, basePath = "") {
+    const source = item && typeof item === "object" && !Array.isArray(item)
+      ? item
+      : (typeof item === "string" ? { path: item } : null);
+    if (!source) return null;
+
+    const rawPath = source.path || source.workspacePath || source.relPath || "";
+    const resolvedPath = rawPath ? resolveArtifactPath(basePath, rawPath) : "";
+    const name = typeof source.name === "string" && source.name.trim()
+      ? source.name.trim()
+      : (resolvedPath.split("/").filter(Boolean).at(-1) || "arquivo");
+    const mimeType = typeof source.mimeType === "string" && source.mimeType.trim()
+      ? source.mimeType.trim()
+      : (typeof source.type === "string" ? source.type.trim() : "");
+
+    return {
+      name,
+      mimeType,
+      ...(resolvedPath ? { path: resolvedPath } : {})
+    };
+  }
+
+  function extractArtifactsFromResultValue(result, basePath = "") {
+    if (!result || typeof result !== "object" || Array.isArray(result)) return [];
+    const artifacts = Array.isArray(result.artifacts)
+      ? result.artifacts
+      : Array.isArray(result.files)
+        ? result.files
+        : Array.isArray(result.attachments)
+          ? result.attachments
+          : (result.artifact || result.file || result.attachment
+              ? [result.artifact || result.file || result.attachment]
+              : []);
+    const resolvedBasePath = basePath
+      || result.artifact_base_path
+      || result.artifactBasePath
+      || result.basePath
+      || result.cwd
+      || "";
+    return artifacts
+      .map((artifact) => normalizeArtifactItem(artifact, resolvedBasePath))
+      .filter(Boolean);
+  }
+
+  function parseFunctionCallOutputPayload(item) {
+    if (!item || typeof item !== "object" || item.type !== "function_call_output") return null;
+    const output = item.output;
+    if (output && typeof output === "object" && !Array.isArray(output)) return output;
+    const raw = typeof output === "string" ? output.trim() : "";
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function buildToolArtifactContentParts(files, user) {
+    const artifacts = Array.isArray(files) ? files : [];
+    if (!artifacts.length) return [];
+
+    const content = [];
+    const references = [];
+
+    for (const file of artifacts) {
+      const name = typeof file?.name === "string" && file.name.trim() ? file.name.trim() : "arquivo";
+      const mimeType = typeof file?.mimeType === "string" && file.mimeType.trim()
+        ? file.mimeType.trim()
+        : "application/octet-stream";
+      const relPath = typeof file?.path === "string" && file.path.trim() ? file.path.trim() : "";
+
+      if (mimeType.toLowerCase().startsWith("image/")) {
+        const imageUrl = await buildImageDataUrl(file, user);
+        references.push(`[Imagem retornada por tool: ${name} (${mimeType})${relPath ? ` path=${relPath}` : ""}]`);
+        if (imageUrl) {
+          content.push({
+            type: "input_image",
+            image_url: imageUrl,
+            detail: "auto"
+          });
+          continue;
+        }
+      }
+
+      content.push(await buildCodexFileSummaryPart(file, user));
+    }
+
+    if (references.length) {
+      content.unshift({
+        type: "input_text",
+        text: references.join("\n")
+      });
+    }
+
+    return content;
+  }
+
+  async function expandCodexInputItems(inputItems, user = null) {
+    const expanded = [];
+    const source = Array.isArray(inputItems) ? inputItems : [];
+
+    for (const item of source) {
+      if (!item || typeof item !== "object") continue;
+      expanded.push(item);
+
+      const payload = parseFunctionCallOutputPayload(item);
+      if (!payload) continue;
+
+      const artifacts = extractArtifactsFromResultValue(payload);
+      if (!artifacts.length) continue;
+
+      const content = await buildToolArtifactContentParts(artifacts, user);
+      if (!content.length) continue;
+
+      expanded.push(makeCodexInputMessage("user", content));
+    }
+
+    return expanded;
+  }
+
   async function buildCodexContextMessages(messages, historyLimit, user = null) {
     const normalized = [];
     const source = Array.isArray(messages) ? messages : [];
@@ -572,7 +718,9 @@ export function createCodexModule({
     const hasMessages = Array.isArray(payload.messages) && payload.messages.length;
     const contextMessages = hasMessages
       ? await buildCodexContextMessages(payload.messages, payload.history_limit, payload.user || null)
-      : (Array.isArray(payload.input) && payload.input.length ? payload.input : []);
+      : (Array.isArray(payload.input) && payload.input.length
+          ? await expandCodexInputItems(payload.input, payload.user || null)
+          : []);
     const userInput = contextMessages.length
       ? JSON.stringify(contextMessages.at(-1))
       : "";
