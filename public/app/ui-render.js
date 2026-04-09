@@ -81,18 +81,25 @@
             renderImagePreview();
         }
 
+        // Guarda o ultimo grant id mostrado via toast pra nao notificar toda hora
+        let lastNotifiedGrantId = null;
         function renderConversationApprovalBanner() {
-            const banner = global.document.getElementById('conversation-approval-banner');
-            const meta = global.document.getElementById('conversation-approval-meta');
-            if (!banner || !meta) return;
+            // Banner fixo foi removido (incomodava). Agora dispara um toast UMA VEZ
+            // quando um grant novo entra em vigor nesta conversa. O user pode ver
+            // detalhes e revogar pelo botao "Approvals" no header.
             const grant = deps.getCurrentConversationGrant();
             if (!grant) {
-                banner.classList.remove('on');
+                lastNotifiedGrantId = null;
                 return;
             }
-            const allowed = Array.isArray(grant.allowed_actions) ? grant.allowed_actions.join(', ') : '*';
-            meta.textContent = `Valido ate ${deps.formatApprovalExpiry(grant.expires_at)}. Acoes: ${allowed}. Usos: ${grant.used_count || 0}.`;
-            banner.classList.add('on');
+            const grantId = String(grant.id || '');
+            if (grantId && grantId !== lastNotifiedGrantId) {
+                lastNotifiedGrantId = grantId;
+                const allowed = Array.isArray(grant.allowed_actions) ? grant.allowed_actions.join(', ') : '*';
+                if (typeof deps.toast === 'function') {
+                    deps.toast(`Grant ativo nesta conversa (${allowed}). Veja em Approvals.`);
+                }
+            }
         }
 
         function renderApprovalsPanel() {

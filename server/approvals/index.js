@@ -199,7 +199,11 @@ export function createApprovalsModule({
 
   async function requireApprovedAction(user, approvalId, expectedAction, consumeMeta = null, options = {}) {
     const normalizedAction = normalizeApprovalAction(expectedAction);
-    const id = String(approvalId || "").trim();
+    const rawId = String(approvalId || "").trim();
+    // Defensive: LLMs often hallucinate placeholder values ("pending", "null", "none", "undefined", "TODO")
+    // when a required approval_id field is empty. Treat these as missing so the grant fallback works.
+    const placeholderPattern = /^(pending|null|none|undefined|todo|xxx|auto|default|placeholder|\{\{.*\}\})$/i;
+    const id = placeholderPattern.test(rawId) ? "" : rawId;
     const conversationId = normalizeConversationId(options.conversationId);
     if (!id) {
       {

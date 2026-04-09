@@ -223,6 +223,41 @@ export function createChatJobsModule({
     const credentials = await credentialsLoader(user);
     const payload = normalizeChatJobPayload(input, credentials);
     const jobId = generateChatJobId();
+    // DEBUG: dump payload structure (no base64 content) to understand multimodal pipeline
+    try {
+      const inputItems = Array.isArray(payload.input) ? payload.input : [];
+      const summary = inputItems.map((item, i) => {
+        if (!item || typeof item !== "object") return `[${i}] ${typeof item}`;
+        if (item.type === "function_call" || item.type === "function_call_output") {
+          return `[${i}] ${item.type} name=${item.name || ""}`;
+        }
+        const parts = Array.isArray(item.content) ? item.content : [];
+        const partInfo = parts.map((p) => {
+          if (!p || typeof p !== "object") return String(typeof p);
+          if (p.type === "input_image") {
+            const url = String(p.image_url || "");
+            const preview = url.startsWith("data:") ? `data:${url.split(";")[0].slice(5)};base64,<${url.length}ch>` : url.slice(0, 40);
+            return `input_image(${preview})`;
+          }
+          if (p.type === "input_text" || p.type === "output_text") {
+            const t = String(p.text || "");
+            return `${p.type}(${t.length}ch: ${JSON.stringify(t.slice(0, 60))})`;
+          }
+          return p.type || "unknown";
+        }).join(", ");
+        return `[${i}] role=${item.role} content=[${partInfo}]`;
+      });
+      const msgCount = Array.isArray(payload.messages) ? payload.messages.length : 0;
+      const msgWithImgs = Array.isArray(payload.messages)
+        ? payload.messages.filter((m) => Array.isArray(m?.imgs) && m.imgs.length).length
+        : 0;
+      console.log(`[ChatJob:MULTIMODAL] ${jobId} provider=${payload.provider} model=${payload.model}`);
+      console.log(`  messages[]: count=${msgCount} withImgs=${msgWithImgs}`);
+      console.log(`  input[]: count=${inputItems.length}`);
+      summary.forEach((s) => console.log(`    ${s}`));
+    } catch (err) {
+      console.warn(`[ChatJob:MULTIMODAL] dump failed: ${err.message}`);
+    }
     const meta = {
       id: jobId,
       provider: payload.provider,

@@ -1070,8 +1070,8 @@
             border: 1px solid var(--border);
             border-radius: 16px;
             display: flex;
-            gap: 10px;
-            align-items: flex-end;
+            gap: 8px;
+            align-items: center;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
 
@@ -1542,20 +1542,8 @@
         }
 
         #conversation-approval-banner {
-            display: none;
-            margin: 0 0 8px;
-            padding: 10px 12px;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            background: linear-gradient(180deg, color-mix(in srgb, var(--accent2) 9%, var(--surface)), var(--surface));
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-
-        #conversation-approval-banner.on {
-            display: flex;
+            /* Banner fixo removido - agora vira toast one-shot em ui-render.js */
+            display: none !important;
         }
 
         .conversation-approval-copy {
@@ -2030,7 +2018,9 @@
         #live-btn::before,
         #live-screen-btn::before,
         #stop-btn::before {
-            margin-right: 6px;
+            font-size: 22px;
+            line-height: 1;
+            display: inline-block;
         }
 
         #attach-btn::before { content: '📎'; }
@@ -2044,17 +2034,29 @@
             display: none;
         }
 
-        #attach-btn,
-        #mic-btn,
-        #live-btn,
-        #live-screen-btn,
-        #send-btn,
-        #stop-btn {
-            min-width: 42px;
-            padding-inline: 12px;
+        /* normalizacao forte dos botoes da ibar — vence todos os overrides */
+        #ibar > button {
+            box-sizing: border-box !important;
+            width: 42px !important;
+            height: 42px !important;
+            min-width: 42px !important;
+            max-width: 42px !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border-radius: 10px !important;
             display: inline-flex;
-            align-items: center;
-            justify-content: center;
+            align-items: center !important;
+            justify-content: center !important;
+            flex-shrink: 0 !important;
+            flex-grow: 0 !important;
+            align-self: center !important;
+            vertical-align: middle;
+            line-height: 1 !important;
+        }
+        /* stop-btn e live-screen-btn ficam escondidos por padrao, JS liga depois */
+        #ibar > button#stop-btn,
+        #ibar > button#live-screen-btn {
+            display: none;
         }
 
         #stop-btn {
@@ -2066,12 +2068,7 @@
             background: none;
             border: 1px solid var(--border);
             color: var(--muted);
-            border-radius: 8px;
-            padding: 5px 11px;
             cursor: pointer;
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: .3px;
             transition: all .2s;
             flex-shrink: 0;
             white-space: nowrap;
@@ -2093,14 +2090,9 @@
             background: none;
             border: 1px solid var(--border);
             color: var(--muted);
-            border-radius: 8px;
-            padding: 5px 11px;
             cursor: pointer;
-            display: none;
-            align-items: center;
-            gap: 6px;
-            font-size: 13px;
             transition: .18s ease;
+            display: none;
         }
 
         #live-screen-btn:hover {
@@ -4158,9 +4150,9 @@
                         type: 'OBJECT',
                         properties: {
                             path: { type: 'STRING', description: 'Caminho relativo do arquivo ou pasta a apagar' },
-                            approval_id: { type: 'STRING', description: 'Approval emitido pelo backend para autorizar a exclusao' }
+                            approval_id: { type: 'STRING', description: 'NAO preencha este campo. Deixe vazio. O backend usa automaticamente o grant ativo da conversa. So preencha se voce tiver um approval_id real emitido pelo endpoint /api/approvals.' }
                         },
-                        required: ['path', 'approval_id']
+                        required: ['path']
                     },
                     action: {
                         type: 'http',
